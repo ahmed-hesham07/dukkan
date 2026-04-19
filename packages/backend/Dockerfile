@@ -1,6 +1,9 @@
 FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 WORKDIR /app
 
+# Ensure devDependencies (tsx, etc.) are installed during build
+ENV NODE_ENV=development
+
 # Copy manifests and lockfile — npm ci requires all workspace package.json files
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/shared/package.json   ./packages/shared/

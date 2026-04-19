@@ -3,6 +3,16 @@ import { sql } from 'kysely';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../lib/AppError.js';
 
+export async function listAllCustomers(tenantId: string) {
+  return db
+    .selectFrom('customers')
+    .selectAll()
+    .where('tenant_id', '=', tenantId)
+    .orderBy('name', 'asc')
+    .limit(500)
+    .execute();
+}
+
 export async function searchCustomerByPhone(phone: string, tenantId: string) {
   return db
     .selectFrom('customers')

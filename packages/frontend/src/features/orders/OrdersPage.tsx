@@ -19,11 +19,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     if (!tenantId) return;
-    localDb.orders
-      .where('tenantId').equals(tenantId)
-      .reverse()
-      .sortBy('createdAt')
-      .then(setOrders);
+    localDb.orders.where('tenantId').equals(tenantId).reverse().sortBy('createdAt').then(setOrders);
   }, [tenantId]);
 
   const formatDate = (iso: string) =>
@@ -40,8 +36,8 @@ export default function OrdersPage() {
       <header className="page-header">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-black text-white">{t('orders.title')}</h1>
-            <p className="text-xs text-white/40 mt-0.5 font-medium">
+            <h1 className="text-xl font-black" style={{ color: '#130F2A' }}>{t('orders.title')}</h1>
+            <p className="text-xs mt-0.5 font-medium" style={{ color: '#9C94B8' }}>
               {orders.length} {t('orders.itemCount')}
             </p>
           </div>
@@ -53,35 +49,19 @@ export default function OrdersPage() {
       </header>
 
       <div className="p-4 space-y-4">
-        {/* Revenue summary card */}
+        {/* Revenue summary */}
         {orders.length > 0 && (
-          <div
-            className="rounded-3xl p-5 animate-fade-in"
-            style={{
-              background: 'linear-gradient(135deg, rgba(124,58,237,0.2) 0%, rgba(6,182,212,0.1) 100%)',
-              border: '1px solid rgba(124,58,237,0.25)',
-            }}
-          >
-            <p className="text-white/50 text-xs font-semibold uppercase tracking-wider mb-1">
-              {t('orders.revenue')}
-            </p>
-            <p
-              className="text-3xl font-black"
-              style={{
-                background: 'linear-gradient(135deg, #a855f7, #06b6d4)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
+          <div className="rounded-2xl p-4 animate-fade-in flex items-center justify-between"
+            style={{ background: '#EDE9FE', border: '1px solid #DDD6FE' }}>
+            <p className="text-sm font-semibold" style={{ color: '#7C3AED' }}>{t('orders.revenue')}</p>
+            <p className="text-2xl font-black" style={{ color: '#7C3AED' }}>
               {totalRevenue.toFixed(2)}
-              <span className="text-base font-bold ms-1" style={{ WebkitTextFillColor: 'rgba(255,255,255,0.5)' }}>
-                {t('common.egp')}
-              </span>
+              <span className="text-sm font-semibold ms-1" style={{ color: '#A78BFA' }}>{t('common.egp')}</span>
             </p>
           </div>
         )}
 
-        {/* New order button */}
+        {/* New order */}
         <button className="btn-primary" onClick={() => navigate('/orders/new')}>
           <span className="flex items-center justify-center gap-2">
             <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
@@ -92,69 +72,41 @@ export default function OrdersPage() {
         </button>
 
         {orders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center mt-20 animate-fade-in">
-            <div
-              className="w-24 h-24 rounded-3xl flex items-center justify-center text-5xl mb-5"
-              style={{
-                background: 'rgba(124,58,237,0.1)',
-                border: '1px solid rgba(124,58,237,0.2)',
-              }}
-            >
+          <div className="flex flex-col items-center justify-center mt-20 animate-fade-in gap-3">
+            <div className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl"
+              style={{ background: '#EDE9FE', border: '1px solid #DDD6FE' }}>
               📋
             </div>
-            <p className="text-white/40 text-base font-medium">{t('orders.empty')}</p>
+            <p className="text-sm font-semibold" style={{ color: '#9C94B8' }}>{t('orders.empty')}</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {orders.map((order, i) => (
-              <button
-                key={order.clientId}
-                className="w-full text-start transition-all duration-150 active:scale-95"
-                style={{ animationDelay: `${i * 30}ms` }}
-                onClick={() => navigate(`/orders/${order.clientId}`)}
-              >
-                <div
-                  className="rounded-3xl p-4"
-                  style={{
-                    background: 'rgba(20,20,42,0.85)',
-                    border: '1px solid rgba(255,255,255,0.07)',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-                    backdropFilter: 'blur(12px)',
-                  }}
-                >
+          <div className="space-y-2.5">
+            {orders.map((order) => (
+              <button key={order.clientId} className="w-full text-start transition-all active:scale-95"
+                onClick={() => navigate(`/orders/${order.clientId}`)}>
+                <div className="rounded-2xl p-4"
+                  style={{ background: '#FFFFFF', border: '1px solid #E8E6F5', boxShadow: '0 1px 6px rgba(19,15,42,0.05)' }}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-white truncate text-base">
+                      <p className="font-bold truncate" style={{ color: '#130F2A' }}>
                         {order.customerName || t('orders.unknownCustomer')}
                       </p>
-                      <p className="text-xs text-white/40 mt-1">{formatDate(order.createdAt)}</p>
-                      <p className="text-xs text-white/30 mt-0.5">
+                      <p className="text-xs mt-1 font-medium" style={{ color: '#9C94B8' }}>{formatDate(order.createdAt)}</p>
+                      <p className="text-xs mt-0.5" style={{ color: '#C4B8F0' }}>
                         {order.items.length} {t('orders.itemCount')}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
                       <StatusChip status={order.status} />
-                      <span
-                        className="font-black text-lg"
-                        style={{
-                          background: 'linear-gradient(135deg, #a855f7, #06b6d4)',
-                          WebkitBackgroundClip: 'text',
-                          WebkitTextFillColor: 'transparent',
-                        }}
-                      >
+                      <span className="font-black text-lg" style={{ color: '#7C3AED' }}>
                         {order.total.toFixed(2)}
-                        <span className="text-sm font-semibold ms-0.5" style={{ WebkitTextFillColor: 'rgba(255,255,255,0.4)' }}>
-                          {t('common.egp')}
-                        </span>
+                        <span className="text-sm font-semibold ms-0.5" style={{ color: '#A78BFA' }}>{t('common.egp')}</span>
                       </span>
                     </div>
                   </div>
-
                   {!order.synced && (
-                    <div
-                      className="mt-3 flex items-center gap-1.5 text-xs font-semibold"
-                      style={{ color: '#f59e0b' }}
-                    >
+                    <div className="mt-2.5 flex items-center gap-1.5 text-xs font-bold"
+                      style={{ color: '#D97706' }}>
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                       {t('sync.pending')}
                     </div>

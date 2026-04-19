@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import {
+  listAllCustomers,
   searchCustomerByPhone,
   upsertCustomer,
   getCustomerOrders,
@@ -16,11 +17,10 @@ customersRouter.get('/', async (req: Request, res: Response, next: NextFunction)
   try {
     const { tenantId } = getAuthUser(req);
     const phone = String(req.query.phone || '').trim();
-    if (!phone) {
-      res.status(400).json({ data: null, error: 'رقم الهاتف مطلوب' });
-      return;
-    }
-    const customers = await searchCustomerByPhone(phone, tenantId);
+    // No phone = list all; phone provided = search
+    const customers = phone
+      ? await searchCustomerByPhone(phone, tenantId)
+      : await listAllCustomers(tenantId);
     res.json({ data: customers, error: null });
   } catch (err) {
     next(err);

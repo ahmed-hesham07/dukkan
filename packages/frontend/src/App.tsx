@@ -4,6 +4,7 @@ import { BottomNav } from './components/BottomNav';
 import { Toast } from './components/Toast';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { initSyncEngine } from './offline/syncEngine';
+import { pullFromServer } from './offline/pullSync';
 import { useAuthStore } from './store/useAuthStore';
 
 const LoginPage = lazy(() => import('./features/auth/LoginPage'));
@@ -20,23 +21,26 @@ const SettingsPage = lazy(() => import('./features/settings/SettingsPage'));
 
 function LoadingScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface">
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#F5F4FF' }}>
       <div className="text-center">
-        <div className="text-4xl font-bold text-primary mb-2">دكان</div>
-        <div className="text-gray-400 text-sm">جارٍ التحميل...</div>
+        <div className="text-4xl font-black mb-2" style={{ color: '#7C3AED' }}>دكان</div>
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mx-auto"
+          style={{ borderColor: '#7C3AED', borderTopColor: 'transparent' }} />
       </div>
     </div>
   );
 }
 
 export default function App() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
 
   useEffect(() => {
-    if (!isAuthenticated()) return;
+    if (!isAuthenticated() || !user?.tenantId) return;
     const cleanup = initSyncEngine();
+    // Pull latest server data into IndexedDB whenever the app loads authenticated
+    pullFromServer(user.tenantId);
     return cleanup;
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.tenantId]);
 
   return (
     <BrowserRouter>
