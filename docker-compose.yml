@@ -1,0 +1,66 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: dukkan_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dukkan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dukkan_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-dukkan}
+    ports:
+      - "${POSTGRES_PORT:-5847}:5432"
+    volumes:
+      - dukkan_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dukkan} -d ${POSTGRES_DB:-dukkan}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    container_name: dukkan_migrate
+    command: ["npx", "tsx", "src/db/migrate.ts"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dukkan}:${POSTGRES_PASSWORD:-dukkan_secret}@db:5432/${POSTGRES_DB:-dukkan}
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+
+  backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    container_name: dukkan_backend
+    ports:
+      - "${PORT:-4847}:4847"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dukkan}:${POSTGRES_PASSWORD:-dukkan_secret}@db:5432/${POSTGRES_DB:-dukkan}
+      PORT: 4847
+      NODE_ENV: production
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3847}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4847/api/v1}
+    container_name: dukkan_frontend
+    ports:
+      - "3847:3847"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  dukkan_pgdata:
+    name: dukkan_pgdata
