@@ -23,7 +23,7 @@ returnsRouter.post('/orders/:id/returns', async (req: Request, res: Response, ne
     }
 
     const result = await createReturn(orderId, { items, refundMethod, notes } as never, tenantId);
-    res.status(201).json(result);
+    res.status(201).json({ data: result, error: null });
   } catch (err) {
     next(err);
   }
@@ -35,7 +35,7 @@ returnsRouter.get('/orders/:id/returns', async (req: Request, res: Response, nex
     const tenantId = (req as unknown as Record<string, string>).tenantId;
     const orderId = req.params.id;
     const result = await listOrderReturns(orderId, tenantId);
-    res.json(result);
+    res.json({ data: result, error: null });
   } catch (err) {
     next(err);
   }
@@ -48,7 +48,7 @@ returnsRouter.get('/returns/:id', async (req: Request, res: Response, next: Next
     const id = req.params.id;
     const result = await getReturn(id, tenantId);
     if (!result) throw new AppError('notFound', 'Return not found');
-    res.json(result);
+    res.json({ data: result, error: null });
   } catch (err) {
     next(err);
   }

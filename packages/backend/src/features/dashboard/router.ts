@@ -11,7 +11,7 @@ dashboardRouter.get('/', async (req: Request, res: Response, next: NextFunction)
     log.debug('Fetching dashboard stats');
 
     const stats = await getDashboardStats(tenantId);
-    res.json(stats);
+    res.json({ data: stats, error: null });
   } catch (err) {
     next(err);
   }
