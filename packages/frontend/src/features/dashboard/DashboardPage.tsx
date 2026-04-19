@@ -17,39 +17,79 @@ interface DashboardStats {
   topProducts: Array<{ name: string; totalQty: number; totalRevenue: number }>;
 }
 
-function KPICard({
-  label,
-  value,
-  sub,
-  gradient,
-  icon,
-}: {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fmt(n: number) {
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function TrendBadge({ pct }: { pct: number | null }) {
+  if (pct === null) return null;
+  const up = pct >= 0;
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 rounded-full"
+      style={{
+        background: up ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+        color: up ? '#34d399' : '#f87171',
+      }}
+    >
+      {up ? '↑' : '↓'} {Math.abs(pct)}%
+    </span>
+  );
+}
+
+// ── KPI Card ──────────────────────────────────────────────────────────────────
+
+interface KPICardProps {
   label: string;
   value: string;
-  sub?: string;
-  gradient: string;
-  icon: string;
-}) {
+  valueColor: string;
+  sub?: React.ReactNode;
+  icon: React.ReactNode;
+  accent: string;
+}
+
+function KPICard({ label, value, valueColor, sub, icon, accent }: KPICardProps) {
   return (
-    <div className={`card relative overflow-hidden`} style={{ padding: '1.25rem' }}>
-      <div
-        className="absolute inset-0 opacity-10 rounded-2xl"
-        style={{ background: gradient }}
-      />
-      <div className="relative z-10 flex flex-col gap-1">
-        <span className="text-2xl">{icon}</span>
-        <p className="text-xs font-medium opacity-60 mt-1">{label}</p>
-        <p
-          className="text-xl font-black"
-          style={{ background: gradient, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
-        >
+    <div
+      className="rounded-2xl p-4 flex flex-col gap-3"
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        border: `1px solid ${accent}`,
+      }}
+    >
+      <div className="flex items-start justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wider opacity-50">{label}</p>
+        <span className="opacity-40">{icon}</span>
+      </div>
+      <div>
+        <p className="text-2xl font-black tracking-tight" style={{ color: valueColor }}>
           {value}
         </p>
-        {sub && <p className="text-xs opacity-50">{sub}</p>}
+        {sub && <div className="mt-1">{sub}</div>}
       </div>
     </div>
   );
 }
+
+// ── Section Header ────────────────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs font-bold uppercase tracking-widest opacity-40 px-1 mb-2">
+      {children}
+    </p>
+  );
+}
+
+// ── Divider ───────────────────────────────────────────────────────────────────
+
+function Divider() {
+  return <div style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />;
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { t } = useTranslation();
@@ -74,213 +114,242 @@ export default function DashboardPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const revenueDiff =
     stats && stats.yesterdayRevenue > 0
       ? Math.round(((stats.todayRevenue - stats.yesterdayRevenue) / stats.yesterdayRevenue) * 100)
       : null;
 
+  const profitMargin =
+    stats && stats.todayRevenue > 0
+      ? Math.round((stats.todayProfit / stats.todayRevenue) * 100)
+      : null;
+
   return (
-    <div className="page-container pb-24">
-      {/* Header */}
+    <div className="page-container pb-28">
+      {/* ── Header ── */}
       <div className="page-header">
         <div>
-          <h1 className="text-2xl font-black bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
-            {t('dashboard.title')}
-          </h1>
-          <p className="text-xs opacity-50 mt-0.5">{t('app.tagline')}</p>
+          <h1 className="text-xl font-black text-white">{t('dashboard.title')}</h1>
+          <p className="text-xs opacity-40 mt-0.5">
+            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={fetchStats}
+            disabled={loading}
+            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
+            <svg
+              viewBox="0 0 24 24" className={`w-4 h-4 text-white/60 ${loading ? 'animate-spin' : ''}`}
+              fill="none"
+            >
+              <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
           <SyncIndicator />
           <LanguageSwitcher />
         </div>
       </div>
 
-      {loading && (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <div className="w-10 h-10 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-          <p className="opacity-50">{t('common.loading')}</p>
+      {/* ── Loading ── */}
+      {loading && !stats && (
+        <div className="flex flex-col items-center justify-center py-24 gap-3">
+          <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs opacity-40">{t('common.loading')}</p>
         </div>
       )}
 
+      {/* ── Error ── */}
       {error && !loading && (
-        <div className="card p-6 text-center" style={{ borderColor: 'rgba(239,68,68,0.3)' }}>
-          <p className="text-red-400 font-medium mb-3">{error}</p>
-          <button className="btn-primary" onClick={fetchStats}>
-            {t('dashboard.refresh')}
-          </button>
+        <div className="mx-4 mt-4 p-5 rounded-2xl text-center" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          <p className="text-red-400 text-sm font-medium mb-3">{error}</p>
+          <button className="btn-primary py-2 text-sm" onClick={fetchStats}>{t('dashboard.refresh')}</button>
         </div>
       )}
 
-      {stats && !loading && (
-        <div className="flex flex-col gap-6">
-          {/* KPI Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <KPICard
-              label={t('dashboard.revenue')}
-              value={`${stats.todayRevenue.toLocaleString()} ${t('common.egp')}`}
-              sub={
-                revenueDiff !== null
-                  ? `${revenueDiff >= 0 ? '+' : ''}${revenueDiff}% ${t('dashboard.vsYesterday')}`
-                  : undefined
-              }
-              gradient="linear-gradient(135deg,#7c3aed,#6d28d9)"
-              icon="💰"
-            />
-            <KPICard
-              label={t('dashboard.orders')}
-              value={String(stats.todayOrders)}
-              sub={`${stats.pendingOrders} ${t('dashboard.pending')}`}
-              gradient="linear-gradient(135deg,#2563eb,#1d4ed8)"
-              icon="📦"
-            />
-            <KPICard
-              label={t('dashboard.profit')}
-              value={`${stats.todayProfit.toLocaleString()} ${t('common.egp')}`}
-              gradient="linear-gradient(135deg,#059669,#047857)"
-              icon="📈"
-            />
-            <KPICard
-              label={t('dashboard.debt')}
-              value={`${stats.outstandingDebt.toLocaleString()} ${t('common.egp')}`}
-              gradient="linear-gradient(135deg,#dc2626,#b91c1c)"
-              icon="⚠️"
-            />
+      {/* ── Content ── */}
+      {stats && (
+        <div className="px-4 pt-2 flex flex-col gap-5">
+
+          {/* ── Revenue spotlight ── */}
+          <div
+            className="rounded-3xl p-5"
+            style={{
+              background: 'linear-gradient(135deg,rgba(124,58,237,0.12) 0%,rgba(6,182,212,0.06) 100%)',
+              border: '1px solid rgba(124,58,237,0.2)',
+            }}
+          >
+            <p className="text-xs font-bold uppercase tracking-widest opacity-50 mb-1">{t('dashboard.revenue')}</p>
+            <div className="flex items-end gap-3">
+              <p className="text-4xl font-black text-white leading-none">
+                {fmt(stats.todayRevenue)}
+                <span className="text-base font-semibold opacity-40 ms-1">{t('common.egp')}</span>
+              </p>
+              <TrendBadge pct={revenueDiff} />
+            </div>
+            {stats.yesterdayRevenue > 0 && (
+              <p className="text-xs opacity-40 mt-2">
+                {t('dashboard.vsYesterday')}: {fmt(stats.yesterdayRevenue)} {t('common.egp')}
+              </p>
+            )}
           </div>
 
-          {/* Low Stock Alert */}
-          {stats.lowStockProducts.length > 0 ? (
-            <div className="card p-4" style={{ borderColor: 'rgba(245,158,11,0.3)' }}>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-amber-400">⚠</span>
-                <h2 className="font-bold text-amber-400 text-sm">
-                  {t('dashboard.lowStock')} ({stats.lowStockProducts.length})
-                </h2>
+          {/* ── 3-stat row ── */}
+          <div className="grid grid-cols-3 gap-2.5">
+            <div className="rounded-2xl p-3.5 flex flex-col gap-1.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <p className="text-xs opacity-40 font-medium">{t('dashboard.orders')}</p>
+              <p className="text-2xl font-black text-white">{stats.todayOrders}</p>
+              {stats.pendingOrders > 0 && (
+                <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full self-start" style={{ background: 'rgba(245,158,11,0.15)', color: '#fbbf24' }}>
+                  {stats.pendingOrders} ⏳
+                </span>
+              )}
+            </div>
+            <div className="rounded-2xl p-3.5 flex flex-col gap-1.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(16,185,129,0.15)' }}>
+              <p className="text-xs opacity-40 font-medium">{t('dashboard.profit')}</p>
+              <p className="text-2xl font-black" style={{ color: '#34d399' }}>{fmt(stats.todayProfit)}</p>
+              {profitMargin !== null && (
+                <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full self-start" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
+                  {profitMargin}%
+                </span>
+              )}
+            </div>
+            <div className="rounded-2xl p-3.5 flex flex-col gap-1.5" style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${stats.outstandingDebt > 0 ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.07)'}` }}>
+              <p className="text-xs opacity-40 font-medium">{t('dashboard.debt')}</p>
+              <p className="text-2xl font-black" style={{ color: stats.outstandingDebt > 0 ? '#f87171' : '#34d399' }}>
+                {stats.outstandingDebt > 0 ? fmt(stats.outstandingDebt) : '—'}
+              </p>
+              {stats.outstandingDebt > 0 && (
+                <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full self-start" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171' }}>
+                  {t('common.egp')}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <Divider />
+
+          {/* ── Low stock ── */}
+          <div>
+            <SectionLabel>{t('dashboard.lowStock')}</SectionLabel>
+            {stats.lowStockProducts.length === 0 ? (
+              <div className="flex items-center gap-2 px-1">
+                <span className="text-emerald-400 text-sm">✓</span>
+                <p className="text-sm opacity-50">{t('dashboard.noLowStock')}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {stats.lowStockProducts.map((p) => (
+            ) : (
+              <div
+                className="rounded-2xl overflow-hidden"
+                style={{ border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)' }}
+              >
+                {stats.lowStockProducts.map((p, i) => (
                   <button
                     key={p.id}
                     onClick={() => navigate('/inventory')}
-                    className="px-3 py-1 rounded-full text-xs font-semibold"
+                    className="w-full flex items-center justify-between px-4 py-3 transition-all active:opacity-70 text-start"
                     style={{
-                      background: 'rgba(245,158,11,0.15)',
-                      border: '1px solid rgba(245,158,11,0.3)',
-                      color: '#fbbf24',
+                      borderBottom: i < stats.lowStockProducts.length - 1
+                        ? '1px solid rgba(245,158,11,0.12)' : 'none',
                     }}
                   >
-                    {p.name} ({p.stock})
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="card p-4" style={{ borderColor: 'rgba(16,185,129,0.3)' }}>
-              <p className="text-emerald-400 text-sm font-medium flex items-center gap-2">
-                <span>✓</span> {t('dashboard.noLowStock')}
-              </p>
-            </div>
-          )}
-
-          {/* Top Products */}
-          <div className="card p-4">
-            <h2 className="font-bold mb-3 flex items-center gap-2">
-              <span>🏆</span>
-              <span className="bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
-                {t('dashboard.topProducts')}
-              </span>
-            </h2>
-            {stats.topProducts.length === 0 ? (
-              <p className="text-sm opacity-50 text-center py-4">{t('dashboard.noSales')}</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {stats.topProducts.map((p, i) => (
-                  <div key={p.name} className="flex items-center justify-between py-2 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
                     <div className="flex items-center gap-3">
-                      <span
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black"
-                        style={{
-                          background:
-                            i === 0
-                              ? 'linear-gradient(135deg,#f59e0b,#d97706)'
-                              : i === 1
-                              ? 'linear-gradient(135deg,#9ca3af,#6b7280)'
-                              : 'linear-gradient(135deg,#92400e,#78350f)',
-                        }}
-                      >
-                        {i + 1}
-                      </span>
-                      <div>
-                        <p className="text-sm font-semibold">{p.name}</p>
-                        <p className="text-xs opacity-50">
-                          {p.totalQty} {t('dashboard.qty')}
-                        </p>
-                      </div>
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                      <p className="text-sm font-semibold text-white">{p.name}</p>
                     </div>
-                    <p className="text-sm font-bold text-violet-400">
-                      {p.totalRevenue.toLocaleString()} {t('common.egp')}
-                    </p>
-                  </div>
+                    <span className="text-sm font-bold text-amber-400">{p.stock} left</span>
+                  </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Quick Actions */}
-          <div className="card p-4">
-            <h2 className="font-bold mb-3 flex items-center gap-2">
-              <span>⚡</span>
-              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                {t('dashboard.quickActions')}
-              </span>
-            </h2>
-            <div className="grid grid-cols-3 gap-3">
-              <button
-                onClick={() => navigate('/orders/new')}
-                className="flex flex-col items-center gap-2 p-3 rounded-2xl"
-                style={{
-                  background: 'linear-gradient(135deg,rgba(124,58,237,0.2),rgba(109,40,217,0.2))',
-                  border: '1px solid rgba(124,58,237,0.3)',
-                }}
+          <Divider />
+
+          {/* ── Top products ── */}
+          <div>
+            <SectionLabel>{t('dashboard.topProducts')}</SectionLabel>
+            {stats.topProducts.length === 0 ? (
+              <p className="text-sm opacity-40 px-1">{t('dashboard.noSales')}</p>
+            ) : (
+              <div
+                className="rounded-2xl overflow-hidden"
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
               >
-                <span className="text-2xl">🛒</span>
-                <span className="text-xs font-semibold text-violet-300">{t('dashboard.newOrder')}</span>
-              </button>
-              <button
-                onClick={() => navigate('/inventory')}
-                className="flex flex-col items-center gap-2 p-3 rounded-2xl"
-                style={{
-                  background: 'linear-gradient(135deg,rgba(37,99,235,0.2),rgba(29,78,216,0.2))',
-                  border: '1px solid rgba(37,99,235,0.3)',
-                }}
-              >
-                <span className="text-2xl">📋</span>
-                <span className="text-xs font-semibold text-blue-300">{t('dashboard.adjustStock')}</span>
-              </button>
-              <button
-                onClick={() => navigate('/customers')}
-                className="flex flex-col items-center gap-2 p-3 rounded-2xl"
-                style={{
-                  background: 'linear-gradient(135deg,rgba(5,150,105,0.2),rgba(4,120,87,0.2))',
-                  border: '1px solid rgba(5,150,105,0.3)',
-                }}
-              >
-                <span className="text-2xl">👥</span>
-                <span className="text-xs font-semibold text-emerald-300">{t('dashboard.viewCustomers')}</span>
-              </button>
+                {stats.topProducts.map((p, i) => {
+                  const rankColors = ['#f59e0b', '#9ca3af', '#92400e'];
+                  const rankColor = rankColors[i] ?? '#4b5563';
+                  const barPct = stats.topProducts[0]?.totalQty
+                    ? Math.round((p.totalQty / stats.topProducts[0].totalQty) * 100)
+                    : 100;
+                  return (
+                    <div
+                      key={p.name}
+                      className="px-4 py-3.5"
+                      style={{
+                        borderBottom: i < stats.topProducts.length - 1
+                          ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
+                            style={{ background: rankColor, color: '#fff', fontSize: '0.6rem' }}
+                          >
+                            {i + 1}
+                          </span>
+                          <p className="text-sm font-semibold text-white">{p.name}</p>
+                        </div>
+                        <div className="text-end">
+                          <p className="text-sm font-bold text-white">{fmt(p.totalRevenue)}</p>
+                          <p className="text-xs opacity-40">{p.totalQty} {t('dashboard.qty')}</p>
+                        </div>
+                      </div>
+                      {/* mini progress bar */}
+                      <div className="h-0.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${barPct}%`, background: rankColor, opacity: 0.7 }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <Divider />
+
+          {/* ── Quick actions ── */}
+          <div>
+            <SectionLabel>{t('dashboard.quickActions')}</SectionLabel>
+            <div className="grid grid-cols-3 gap-2.5">
+              {[
+                { label: t('dashboard.newOrder'), icon: '＋', color: '#a78bfa', bg: 'rgba(124,58,237,0.1)', border: 'rgba(124,58,237,0.2)', path: '/orders/new' },
+                { label: t('dashboard.adjustStock'), icon: '◫', color: '#60a5fa', bg: 'rgba(37,99,235,0.1)', border: 'rgba(37,99,235,0.2)', path: '/inventory' },
+                { label: t('dashboard.viewCustomers'), icon: '⊕', color: '#34d399', bg: 'rgba(5,150,105,0.1)', border: 'rgba(5,150,105,0.2)', path: '/customers' },
+              ].map((action) => (
+                <button
+                  key={action.path}
+                  onClick={() => navigate(action.path)}
+                  className="flex flex-col items-center gap-2 py-4 rounded-2xl transition-all active:scale-95"
+                  style={{ background: action.bg, border: `1px solid ${action.border}` }}
+                >
+                  <span className="text-xl font-black" style={{ color: action.color }}>{action.icon}</span>
+                  <span className="text-xs font-semibold text-center leading-tight" style={{ color: action.color }}>
+                    {action.label}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Refresh button */}
-          <button
-            onClick={fetchStats}
-            className="btn-secondary w-full flex items-center justify-center gap-2"
-          >
-            <span>↻</span> {t('dashboard.refresh')}
-          </button>
         </div>
       )}
     </div>
