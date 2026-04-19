@@ -6,12 +6,14 @@ import {
   updateProduct,
   deleteProduct,
 } from './service.js';
+import { getAuthUser } from '../../middleware/auth.js';
 
 export const productsRouter = Router();
 
-productsRouter.get('/', async (_req, res, next) => {
+productsRouter.get('/', async (req, res, next) => {
   try {
-    const products = await listProducts();
+    const { tenantId } = getAuthUser(req);
+    const products = await listProducts(tenantId);
     res.json({ data: products, error: null });
   } catch (err) {
     next(err);
@@ -20,6 +22,7 @@ productsRouter.get('/', async (_req, res, next) => {
 
 productsRouter.post('/', async (req, res, next) => {
   try {
+    const { tenantId } = getAuthUser(req);
     const { name, price, stock, lowStockThreshold } = req.body as {
       name: string;
       price: number;
@@ -30,7 +33,7 @@ productsRouter.post('/', async (req, res, next) => {
       res.status(400).json({ data: null, error: 'الاسم والسعر مطلوبان' });
       return;
     }
-    const product = await createProduct({ name, price, stock, lowStockThreshold });
+    const product = await createProduct({ name, price, stock, lowStockThreshold }, tenantId);
     res.status(201).json({ data: product, error: null });
   } catch (err) {
     next(err);
@@ -39,11 +42,12 @@ productsRouter.post('/', async (req, res, next) => {
 
 productsRouter.patch('/:id', async (req, res, next) => {
   try {
-    const updated = await updateProduct(req.params.id, req.body as {
-      name?: string;
-      price?: number;
-      lowStockThreshold?: number;
-    });
+    const { tenantId } = getAuthUser(req);
+    const updated = await updateProduct(
+      req.params.id,
+      req.body as { name?: string; price?: number; lowStockThreshold?: number },
+      tenantId
+    );
     if (!updated) {
       res.status(404).json({ data: null, error: 'المنتج غير موجود' });
       return;
@@ -56,12 +60,13 @@ productsRouter.patch('/:id', async (req, res, next) => {
 
 productsRouter.patch('/:id/stock', async (req, res, next) => {
   try {
+    const { tenantId } = getAuthUser(req);
     const delta = Number(req.body.delta);
     if (isNaN(delta)) {
       res.status(400).json({ data: null, error: 'قيمة التعديل غير صحيحة' });
       return;
     }
-    const product = await adjustStock(req.params.id, delta);
+    const product = await adjustStock(req.params.id, delta, tenantId);
     if (!product) {
       res.status(404).json({ data: null, error: 'المنتج غير موجود' });
       return;
@@ -74,7 +79,8 @@ productsRouter.patch('/:id/stock', async (req, res, next) => {
 
 productsRouter.delete('/:id', async (req, res, next) => {
   try {
-    await deleteProduct(req.params.id);
+    const { tenantId } = getAuthUser(req);
+    await deleteProduct(req.params.id, tenantId);
     res.json({ data: { deleted: true }, error: null });
   } catch (err) {
     next(err);

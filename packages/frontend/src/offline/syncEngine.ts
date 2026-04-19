@@ -1,12 +1,15 @@
 import { apiPost } from '../api/client.js';
+import { log } from '../lib/logger.js';
 import {
   getPendingItems,
   markSyncing,
   markDone,
   markFailed,
+  markDead,
   countPending,
 } from './queue.js';
 import { useAppStore } from '../store/useAppStore.js';
+import { useAuthStore } from '../store/useAuthStore.js';
 import type { SyncBatchItem, SyncBatchResponse } from '@dukkan/shared';
 import { SYNC_MAX_RETRIES, SYNC_BASE_DELAY_MS, SYNC_MAX_DELAY_MS } from '@dukkan/shared';
 
@@ -19,18 +22,25 @@ function getBackoffDelay(attempt: number): number {
   return Math.min(delay, SYNC_MAX_DELAY_MS);
 }
 
+function getCurrentTenantId(): string | null {
+  return useAuthStore.getState().user?.tenantId ?? null;
+}
+
 export async function runSync(): Promise<void> {
   if (isSyncing || !navigator.onLine) return;
 
-  const pending = await getPendingItems();
+  const tenantId = getCurrentTenantId();
+  if (!tenantId) return;
+
+  const pending = await getPendingItems(tenantId);
   if (pending.length === 0) {
     useAppStore.getState().setSyncPending(0);
     return;
   }
 
+  log.info(`Sync: starting batch of ${pending.length} item(s)`);
   isSyncing = true;
 
-  // Filter out items that have exceeded max retries
   const eligible = pending.filter((item) => item.retries < SYNC_MAX_RETRIES);
   if (eligible.length === 0) {
     isSyncing = false;
@@ -44,7 +54,6 @@ export async function runSync(): Promise<void> {
     payload: item.payload,
   }));
 
-  // Mark all as syncing
   await Promise.all(eligible.map((item) => markSyncing(item.id!)));
 
   try {
@@ -53,35 +62,51 @@ export async function runSync(): Promise<void> {
       batchPayload
     );
 
+    let successCount = 0;
+    let failCount = 0;
+
     for (const result of response) {
       const item = eligible.find((i) => i.clientId === result.clientId);
       if (!item) continue;
-
       if (result.success) {
         await markDone(item.id!);
+        successCount++;
+      } else if (result.permanent) {
+        // Server confirmed this is a bad-data error — retrying will never help.
+        await markDead(item.id!, result.error || 'permanent error');
+        failCount++;
+        log.error('Sync: item permanently dead — will not retry', undefined, {
+          clientId: result.clientId,
+          error: result.error,
+          entity: item.entity,
+        });
       } else {
         await markFailed(item.id!, result.error || 'خطأ', item.retries + 1);
+        failCount++;
+        log.warn('Sync: item failed', { clientId: result.clientId, error: result.error });
       }
     }
 
+    log.info('Sync: batch complete', { successCount, failCount });
     retryCount = 0;
   } catch (err) {
-    // Network/server error — backoff and retry all
+    const message = err instanceof Error ? err.message : 'خطأ في الشبكة';
+    log.error('Sync: batch request failed', err);
     for (const item of eligible) {
-      await markFailed(
-        item.id!,
-        err instanceof Error ? err.message : 'خطأ في الشبكة',
-        item.retries + 1
-      );
+      await markFailed(item.id!, message, item.retries + 1);
     }
 
     retryCount++;
     const delay = getBackoffDelay(retryCount);
+    log.warn('Sync: scheduling retry with backoff', { retryCount, delayMs: delay });
     scheduleRetry(delay);
   } finally {
     isSyncing = false;
-    const stillPending = await countPending();
-    useAppStore.getState().setSyncPending(stillPending);
+    const tenantIdNow = getCurrentTenantId();
+    if (tenantIdNow) {
+      const stillPending = await countPending(tenantIdNow);
+      useAppStore.getState().setSyncPending(stillPending);
+    }
   }
 }
 
@@ -97,12 +122,14 @@ export function initSyncEngine() {
   const store = useAppStore.getState();
 
   const handleOnline = () => {
+    log.info('Network: back online — triggering sync');
     store.setOnline(true);
     retryCount = 0;
     runSync();
   };
 
   const handleOffline = () => {
+    log.warn('Network: went offline');
     store.setOnline(false);
     if (retryTimer) {
       clearTimeout(retryTimer);
@@ -113,12 +140,10 @@ export function initSyncEngine() {
   window.addEventListener('online', handleOnline);
   window.addEventListener('offline', handleOffline);
 
-  // Sync on startup if online
   if (navigator.onLine) {
     runSync();
   }
 
-  // Periodic sync every 30 seconds
   const periodicSync = setInterval(() => {
     if (navigator.onLine) runSync();
   }, 30000);

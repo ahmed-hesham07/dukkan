@@ -1,5 +1,5 @@
 export type SyncEntity = 'order' | 'customer' | 'product' | 'stock';
-export type SyncStatus = 'pending' | 'syncing' | 'failed' | 'done';
+export type SyncStatus = 'pending' | 'syncing' | 'failed' | 'done' | 'dead';
 
 export interface SyncQueueItem {
   id?: number;
@@ -23,6 +23,8 @@ export interface SyncBatchItem {
 export interface SyncBatchResult {
   clientId: string;
   success: boolean;
+  /** true when the server considers this error permanent (bad data, not a transient failure) */
+  permanent?: boolean;
   data?: Record<string, unknown>;
   error?: string;
 }

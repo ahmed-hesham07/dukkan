@@ -1,16 +1,20 @@
 import { Router } from 'express';
 import { db } from '../../db/client.js';
+import { getAuthUser } from '../../middleware/auth.js';
 
 export const invoicesRouter = Router();
 
 invoicesRouter.get('/:orderId', async (req, res, next) => {
   try {
+    const { tenantId } = getAuthUser(req);
+
     const order = await db
       .selectFrom('orders')
       .leftJoin('customers', 'customers.id', 'orders.customer_id')
       .select([
         'orders.id',
         'orders.client_id',
+        'orders.tenant_id',
         'orders.customer_id',
         'orders.status',
         'orders.total',
@@ -21,6 +25,7 @@ invoicesRouter.get('/:orderId', async (req, res, next) => {
         'customers.phone as customer_phone',
       ])
       .where('orders.id', '=', req.params.orderId)
+      .where('orders.tenant_id', '=', tenantId)
       .executeTakeFirst();
 
     if (!order) {

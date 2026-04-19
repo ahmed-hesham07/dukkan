@@ -43,6 +43,9 @@ services:
       PORT: 4847
       NODE_ENV: production
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3847}
+      JWT_SECRET: ${JWT_SECRET:-change_this_in_production}
+      JWT_EXPIRY_DAYS: ${JWT_EXPIRY_DAYS:-30}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       migrate:
         condition: service_completed_successfully

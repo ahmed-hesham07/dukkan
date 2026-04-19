@@ -1,18 +1,20 @@
 import { db } from '../../db/client.js';
 
-export async function searchCustomerByPhone(phone: string) {
+export async function searchCustomerByPhone(phone: string, tenantId: string) {
   return db
     .selectFrom('customers')
     .selectAll()
+    .where('tenant_id', '=', tenantId)
     .where('phone', 'like', `%${phone}%`)
     .limit(10)
     .execute();
 }
 
-export async function upsertCustomer(phone: string, name: string) {
+export async function upsertCustomer(phone: string, name: string, tenantId: string) {
   const existing = await db
     .selectFrom('customers')
     .selectAll()
+    .where('tenant_id', '=', tenantId)
     .where('phone', '=', phone)
     .executeTakeFirst();
 
@@ -21,21 +23,23 @@ export async function upsertCustomer(phone: string, name: string) {
       .updateTable('customers')
       .set({ name })
       .where('id', '=', existing.id)
+      .where('tenant_id', '=', tenantId)
       .returningAll()
       .executeTakeFirstOrThrow();
   }
 
   return db
     .insertInto('customers')
-    .values({ phone, name })
+    .values({ phone, name, tenant_id: tenantId })
     .returningAll()
     .executeTakeFirstOrThrow();
 }
 
-export async function getCustomerOrders(customerId: string) {
+export async function getCustomerOrders(customerId: string, tenantId: string) {
   const orders = await db
     .selectFrom('orders')
     .selectAll()
+    .where('tenant_id', '=', tenantId)
     .where('customer_id', '=', customerId)
     .orderBy('created_at', 'desc')
     .limit(50)

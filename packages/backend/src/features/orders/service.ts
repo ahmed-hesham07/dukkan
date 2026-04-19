@@ -1,12 +1,51 @@
 import { db } from '../../db/client.js';
+import { logger } from '../../lib/logger.js';
 import type { CreateOrderInput } from '@dukkan/shared';
 
-export async function createOrder(input: CreateOrderInput) {
-  // Check idempotency: if client_id already synced, return existing
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Validate and resolve a customerId before inserting.
+ * Returns null when:
+ *   - the value is falsy
+ *   - the value is not a valid UUID (e.g. old "local-<timestamp>" offline IDs)
+ *   - the customer doesn't exist in the DB yet (avoids FK violation)
+ *
+ * This makes order sync idempotent and safe even when the customer
+ * hasn't been synced yet or was created with an invalid local ID.
+ */
+async function resolveCustomerId(
+  rawId: string | null | undefined,
+  tenantId: string,
+): Promise<string | null> {
+  if (!rawId) return null;
+
+  if (!UUID_REGEX.test(rawId)) {
+    logger.warn({ rawCustomerId: rawId }, 'createOrder: dropping non-UUID customerId');
+    return null;
+  }
+
+  const customer = await db
+    .selectFrom('customers')
+    .select('id')
+    .where('id', '=', rawId)
+    .where('tenant_id', '=', tenantId)
+    .executeTakeFirst();
+
+  if (!customer) {
+    logger.warn({ customerId: rawId, tenantId }, 'createOrder: customer not found in DB, setting customer_id to null');
+    return null;
+  }
+
+  return customer.id;
+}
+
+export async function createOrder(input: CreateOrderInput, tenantId: string) {
   const existing = await db
     .selectFrom('orders')
     .selectAll()
     .where('client_id', '=', input.clientId)
+    .where('tenant_id', '=', tenantId)
     .executeTakeFirst();
 
   if (existing) {
@@ -18,13 +57,16 @@ export async function createOrder(input: CreateOrderInput) {
     return { ...existing, items, isDuplicate: true };
   }
 
+  const customerId = await resolveCustomerId(input.customerId, tenantId);
+
   return db.transaction().execute(async (trx) => {
     const order = await trx
       .insertInto('orders')
       .values({
         id: input.clientId,
         client_id: input.clientId,
-        customer_id: input.customerId ?? null,
+        tenant_id: tenantId,
+        customer_id: customerId,
         status: input.status ?? 'pending',
         total: input.total,
         notes: input.notes ?? null,
@@ -50,19 +92,18 @@ export async function createOrder(input: CreateOrderInput) {
             .execute()
         : [];
 
-    // Decrement stock for products
     for (const item of input.items) {
       if (item.productId) {
         await trx
           .updateTable('products')
           .set((eb) => ({ stock: eb('stock', '-', item.quantity) }))
           .where('id', '=', item.productId)
+          .where('tenant_id', '=', tenantId)
           .where('stock', '>=', item.quantity)
           .execute();
       }
     }
 
-    // Log to sync_log for idempotency tracking
     await trx
       .insertInto('sync_log')
       .values({ client_id: input.clientId, entity_type: 'order' })
@@ -73,13 +114,14 @@ export async function createOrder(input: CreateOrderInput) {
   });
 }
 
-export async function getOrder(id: string) {
+export async function getOrder(id: string, tenantId: string) {
   const order = await db
     .selectFrom('orders')
     .leftJoin('customers', 'customers.id', 'orders.customer_id')
     .select([
       'orders.id',
       'orders.client_id',
+      'orders.tenant_id',
       'orders.customer_id',
       'orders.status',
       'orders.total',
@@ -90,6 +132,7 @@ export async function getOrder(id: string) {
       'customers.phone as customer_phone',
     ])
     .where('orders.id', '=', id)
+    .where('orders.tenant_id', '=', tenantId)
     .executeTakeFirst();
 
   if (!order) return null;
@@ -103,7 +146,7 @@ export async function getOrder(id: string) {
   return { ...order, items };
 }
 
-export async function updateOrderStatus(id: string, status: string) {
+export async function updateOrderStatus(id: string, status: string, tenantId: string) {
   const validStatuses = ['pending', 'paid', 'delivered', 'cancelled'];
   if (!validStatuses.includes(status)) return null;
 
@@ -111,17 +154,19 @@ export async function updateOrderStatus(id: string, status: string) {
     .updateTable('orders')
     .set({ status })
     .where('id', '=', id)
+    .where('tenant_id', '=', tenantId)
     .returningAll()
     .executeTakeFirst();
 }
 
-export async function listOrders(limit = 50, offset = 0) {
-  const orders = await db
+export async function listOrders(tenantId: string, limit = 50, offset = 0) {
+  return db
     .selectFrom('orders')
     .leftJoin('customers', 'customers.id', 'orders.customer_id')
     .select([
       'orders.id',
       'orders.client_id',
+      'orders.tenant_id',
       'orders.customer_id',
       'orders.status',
       'orders.total',
@@ -131,10 +176,9 @@ export async function listOrders(limit = 50, offset = 0) {
       'customers.name as customer_name',
       'customers.phone as customer_phone',
     ])
+    .where('orders.tenant_id', '=', tenantId)
     .orderBy('orders.created_at', 'desc')
     .limit(limit)
     .offset(offset)
     .execute();
-
-  return orders;
 }

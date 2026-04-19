@@ -4,3 +4,4 @@ export * from './order.js';
 export * from './invoice.js';
 export * from './sync.js';
 export * from './api.js';
+export * from './auth.js';

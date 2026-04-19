@@ -26,8 +26,14 @@
     "price": "السعر",
     "quantity": "الكمية",
     "submit": "تأكيد الطلب",
+    "revenue": "إجمالي الإيرادات",
     "empty": "لا توجد طلبات",
-    "noItems": "أضف منتجاً على الأقل"
+    "noItems": "أضف منتجاً على الأقل",
+    "unknownCustomer": "عميل غير محدد",
+    "itemCount": "منتج",
+    "changeStatus": "تغيير الحالة",
+    "orderDetail": "تفاصيل الطلب",
+    "priceX": "× السعر"
   },
   "customers": {
     "title": "العملاء",
@@ -37,7 +43,13 @@
     "add": "إضافة عميل",
     "history": "سجل المشتريات",
     "noHistory": "لا توجد طلبات سابقة",
-    "select": "اختر عميلاً (اختياري)"
+    "select": "اختر عميلاً (اختياري)",
+    "noCustomers": "لا يوجد عملاء",
+    "change": "تغيير",
+    "notFound": "لا يوجد عميل بهذا الرقم",
+    "addNew": "+ إضافة عميل جديد",
+    "ordersCount": "طلب",
+    "egpSpent": "جنيه"
   },
   "inventory": {
     "title": "المخزون",
@@ -49,7 +61,11 @@
     "adjust": "تعديل المخزون",
     "increase": "زيادة",
     "decrease": "نقصان",
-    "amount": "الكمية"
+    "amount": "الكمية",
+    "noProducts": "لا توجد منتجات",
+    "alertLevel": "حد التنبيه",
+    "productN": "منتج",
+    "cancelAdjust": "إلغاء"
   },
   "invoice": {
     "title": "فاتورة",
@@ -71,6 +87,38 @@
     "offline": "غير متصل",
     "pending": "في الانتظار للمزامنة",
     "failed": "فشل المزامنة"
+  },
+  "settings": {
+    "account": "الحساب",
+    "logout": "تسجيل الخروج",
+    "language": "اللغة",
+    "syncSection": "حالة المزامنة",
+    "syncStatus": "الحالة",
+    "syncPending": "في الانتظار",
+    "operations": "عملية",
+    "syncNow": "مزامنة الآن",
+    "maintenance": "الصيانة",
+    "clearCache": "تنظيف السجلات القديمة",
+    "systemInfo": "معلومات النظام",
+    "frontend": "الواجهة الأمامية",
+    "backend": "الخادم",
+    "database": "قاعدة البيانات",
+    "version": "الإصدار",
+    "roleOwner": "مالك",
+    "roleCashier": "كاشير"
+  },
+  "msg": {
+    "noInternet": "لا يوجد اتصال بالإنترنت",
+    "syncDone": "تمت المزامنة",
+    "statusUpdated": "تم تحديث الحالة",
+    "statusFailed": "فشل تحديث الحالة",
+    "orderSaved": "تم حفظ الطلب بنجاح ✓",
+    "orderFailed": "فشل حفظ الطلب",
+    "productAdded": "تم إضافة المنتج",
+    "stockUpdated": "تم تحديث المخزون",
+    "cacheCleared": "تم تنظيف السجلات القديمة",
+    "confirmLogout": "هل تريد تسجيل الخروج؟",
+    "confirmClear": "هل أنت متأكد؟ سيتم حذف السجلات القديمة المتزامنة."
   },
   "common": {
     "save": "حفظ",

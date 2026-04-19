@@ -6,6 +6,7 @@ import { localDb } from '../../offline/db';
 import { enqueue } from '../../offline/queue';
 import { runSync } from '../../offline/syncEngine';
 import { useAppStore } from '../../store/useAppStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { CustomerSearchInput } from '../customers/CustomerSearchInput';
 import type { Customer, CreateOrderItemInput } from '@dukkan/shared';
 
@@ -17,10 +18,27 @@ interface DraftItem {
   productId?: string;
 }
 
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90 flex-shrink-0"
+      style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
+    >
+      <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="none">
+        <path d="M19 12H5M5 12l7-7M5 12l7 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </button>
+  );
+}
+
 export default function NewOrderPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { showToast, products } = useAppStore();
+  const { user } = useAuthStore();
+  const tenantId = user?.tenantId ?? '';
+
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [items, setItems] = useState<DraftItem[]>([
     { id: uuidv4(), name: '', price: '', quantity: '1' },
@@ -49,16 +67,11 @@ export default function NewOrderPage() {
     );
   };
 
-  const total = items.reduce((sum, i) => {
-    const price = parseFloat(i.price) || 0;
-    const qty = parseInt(i.quantity) || 0;
-    return sum + price * qty;
-  }, 0);
-
+  const total = items.reduce((sum, i) => sum + (parseFloat(i.price) || 0) * (parseInt(i.quantity) || 0), 0);
   const isValid = items.every((i) => i.name.trim() && parseFloat(i.price) > 0 && parseInt(i.quantity) > 0);
 
   const handleSubmit = useCallback(async () => {
-    if (!isValid || submitting) return;
+    if (!isValid || submitting || !tenantId) return;
     setSubmitting(true);
 
     const clientId = uuidv4();
@@ -72,111 +85,121 @@ export default function NewOrderPage() {
     }));
 
     try {
-      // Write to IndexedDB immediately
       await localDb.orders.add({
-        clientId,
-        id: clientId,
+        clientId, id: clientId, tenantId,
         customerId: customer?.id || null,
         customerName: customer?.name,
         customerPhone: customer?.phone,
-        status: 'pending',
-        total,
+        status: 'pending', total,
         notes: notes || null,
-        items: parsedItems.map((item, idx) => ({
-          localId: undefined,
-          orderId: clientId,
-          id: uuidv4(),
+        items: parsedItems.map((item) => ({
+          localId: undefined, orderId: clientId, id: uuidv4(),
           productId: item.productId || null,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
+          name: item.name, price: item.price, quantity: item.quantity,
         })),
-        createdAt,
-        syncedAt: createdAt,
-        synced: false,
+        createdAt, syncedAt: createdAt, synced: false,
       });
-
-      // Enqueue for sync
       await enqueue(clientId, 'order', 'create', {
-        clientId,
-        customerId: customer?.id,
-        status: 'pending',
-        total,
-        notes: notes || undefined,
-        items: parsedItems,
-        createdAt,
-      });
-
+        clientId, customerId: customer?.id, status: 'pending',
+        total, notes: notes || undefined, items: parsedItems, createdAt,
+      }, tenantId);
       runSync();
-      showToast('تم حفظ الطلب بنجاح ✓');
+      showToast(t('msg.orderSaved'));
       navigate('/');
-    } catch (err) {
-      showToast('فشل حفظ الطلب', 'error');
+    } catch {
+      showToast(t('msg.orderFailed'), 'error');
     } finally {
       setSubmitting(false);
     }
-  }, [items, customer, notes, total, isValid, submitting, navigate, showToast]);
+  }, [items, customer, notes, total, isValid, submitting, tenantId, navigate, showToast, t]);
 
   return (
     <div className="page-container">
       <header className="page-header">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="text-white text-xl">←</button>
-          <h1 className="text-xl font-bold">{t('orders.new')}</h1>
+          <BackButton onClick={() => navigate(-1)} />
+          <h1 className="text-xl font-black text-white">{t('orders.new')}</h1>
         </div>
       </header>
 
       <div className="p-4 space-y-4">
         {/* Customer */}
-        <div className="card">
-          <label className="block text-sm font-semibold text-gray-500 mb-2">
+        <div
+          className="rounded-3xl p-4"
+          style={{
+            background: 'rgba(20,20,42,0.85)',
+            border: '1px solid rgba(255,255,255,0.07)',
+          }}
+        >
+          <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-3">
             {t('customers.select')}
           </label>
           <CustomerSearchInput onSelect={setCustomer} selected={customer} />
         </div>
 
-        {/* Items */}
-        <div className="card space-y-3">
-          <p className="font-semibold text-gray-700">{t('orders.items')}</p>
-
-          {/* Product quick-select from catalog */}
-          {products.length > 0 && (
-            <div className="overflow-x-auto">
-              <div className="flex gap-2 pb-1">
-                {products.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => {
-                      const emptyItem = items.find((i) => !i.name);
-                      if (emptyItem) {
-                        selectProduct(emptyItem.id, p.id);
-                      } else {
-                        const newId = uuidv4();
-                        setItems((prev) => [
-                          ...prev,
-                          { id: newId, name: p.name, price: String(p.price), quantity: '1', productId: p.id },
-                        ]);
-                      }
-                    }}
-                    className="shrink-0 bg-blue-50 text-blue-700 text-sm font-medium px-3 py-2 rounded-lg whitespace-nowrap"
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
+        {/* Product quick-add chips */}
+        {products.length > 0 && (
+          <div className="overflow-x-auto -mx-4 px-4">
+            <div className="flex gap-2 pb-1" style={{ width: 'max-content' }}>
+              {products.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    const empty = items.find((i) => !i.name);
+                    if (empty) {
+                      selectProduct(empty.id, p.id);
+                    } else {
+                      const newId = uuidv4();
+                      setItems((prev) => [
+                        ...prev,
+                        { id: newId, name: p.name, price: String(p.price), quantity: '1', productId: p.id },
+                      ]);
+                    }
+                  }}
+                  className="flex-shrink-0 text-sm font-bold px-3.5 py-2 rounded-full transition-all active:scale-95 whitespace-nowrap"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(124,58,237,0.2) 0%, rgba(6,182,212,0.1) 100%)',
+                    border: '1px solid rgba(124,58,237,0.25)',
+                    color: '#a855f7',
+                  }}
+                >
+                  {p.name}
+                </button>
+              ))}
             </div>
-          )}
+          </div>
+        )}
+
+        {/* Items */}
+        <div
+          className="rounded-3xl p-4 space-y-3"
+          style={{
+            background: 'rgba(20,20,42,0.85)',
+            border: '1px solid rgba(255,255,255,0.07)',
+          }}
+        >
+          <p className="text-xs font-bold text-white/40 uppercase tracking-wider">{t('orders.items')}</p>
 
           {items.map((item, idx) => (
-            <div key={item.id} className="border border-gray-100 rounded-xl p-3 space-y-2">
+            <div
+              key={item.id}
+              className="rounded-2xl p-3.5 space-y-3"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.06)',
+              }}
+            >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-400">منتج {idx + 1}</span>
+                <span className="text-xs font-bold text-white/30 uppercase tracking-wider">
+                  {t('inventory.productN')} {idx + 1}
+                </span>
                 {items.length > 1 && (
                   <button
                     onClick={() => removeItem(item.id)}
-                    className="text-danger text-sm font-semibold"
+                    className="text-xs font-bold px-2.5 py-1 rounded-full transition-all active:scale-95"
+                    style={{ color: '#f72585', background: 'rgba(247,37,133,0.12)' }}
                   >
-                    ✕ حذف
+                    ✕ {t('common.delete')}
                   </button>
                 )}
               </div>
@@ -190,60 +213,87 @@ export default function NewOrderPage() {
                 <input
                   className="input-field"
                   placeholder={t('orders.price')}
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
+                  type="number" inputMode="decimal" min="0"
                   value={item.price}
                   onChange={(e) => updateItem(item.id, 'price', e.target.value)}
                 />
                 <input
                   className="input-field"
                   placeholder={t('orders.quantity')}
-                  type="number"
-                  inputMode="numeric"
-                  min="1"
+                  type="number" inputMode="numeric" min="1"
                   value={item.quantity}
                   onChange={(e) => updateItem(item.id, 'quantity', e.target.value)}
                 />
               </div>
               {item.name && item.price && item.quantity && (
-                <p className="text-sm text-gray-500 text-left">
+                <p
+                  className="text-sm font-bold"
+                  style={{
+                    background: 'linear-gradient(135deg, #a855f7, #06b6d4)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                  }}
+                >
                   = {(parseFloat(item.price) * parseInt(item.quantity)).toFixed(2)} {t('common.egp')}
                 </p>
               )}
             </div>
           ))}
 
-          <button onClick={addItem} className="btn-secondary">
-            + {t('orders.addItem')}
+          <button className="btn-secondary py-3 text-sm" onClick={addItem}>
+            <span className="flex items-center justify-center gap-2">
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none">
+                <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+              </svg>
+              {t('orders.addItem')}
+            </span>
           </button>
         </div>
 
         {/* Notes */}
-        <div className="card">
-          <textarea
-            className="input-field resize-none"
-            rows={2}
-            placeholder={t('orders.notes')}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </div>
+        <textarea
+          className="input-field resize-none"
+          rows={2}
+          placeholder={t('orders.notes')}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
 
         {/* Total + Submit */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-gray-600 font-semibold text-lg">{t('orders.total')}</span>
-            <span className="text-2xl font-bold text-primary">
-              {total.toFixed(2)} {t('common.egp')}
+        <div
+          className="rounded-3xl p-5"
+          style={{
+            background: 'linear-gradient(135deg, rgba(124,58,237,0.15) 0%, rgba(6,182,212,0.08) 100%)',
+            border: '1px solid rgba(124,58,237,0.25)',
+          }}
+        >
+          <div className="flex items-center justify-between mb-5">
+            <span className="text-white/60 font-semibold">{t('orders.total')}</span>
+            <span
+              className="text-3xl font-black"
+              style={{
+                background: 'linear-gradient(135deg, #a855f7, #06b6d4)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              {total.toFixed(2)}
+              <span className="text-base ms-1" style={{ WebkitTextFillColor: 'rgba(255,255,255,0.4)' }}>
+                {t('common.egp')}
+              </span>
             </span>
           </div>
-          <button
-            className="btn-primary"
-            onClick={handleSubmit}
-            disabled={!isValid || submitting}
-          >
-            {submitting ? t('common.loading') : t('orders.submit')}
+          <button className="btn-primary" onClick={handleSubmit} disabled={!isValid || submitting}>
+            {submitting
+              ? <span className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="3"/>
+                    <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8v8H4z"/>
+                  </svg>
+                  {t('common.loading')}
+                </span>
+              : `✅ ${t('orders.submit')}`
+            }
           </button>
         </div>
       </div>
