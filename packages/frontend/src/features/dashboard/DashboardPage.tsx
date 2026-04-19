@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { apiGet } from '../../api/client';
 import { SyncIndicator } from '../../components/SyncIndicator';
 import { LanguageSwitcher } from '../../components/LanguageSwitcher';
+import { DukkanMark } from '../../components/DukkanLogo';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useLanguageStore } from '../../store/useLanguageStore';
 import { log } from '../../lib/logger';
 
 interface DashboardStats {
@@ -32,9 +35,19 @@ function TrendBadge({ pct }: { pct: number | null }) {
   );
 }
 
+function getGreeting(isAr: boolean): string {
+  const h = new Date().getHours();
+  if (h < 12) return isAr ? 'صباح الخير' : 'Good morning';
+  if (h < 17) return isAr ? 'مساء النهار' : 'Good afternoon';
+  return isAr ? 'مساء الخير' : 'Good evening';
+}
+
 export default function DashboardPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const { lang } = useLanguageStore();
+  const isAr = lang === 'ar';
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,23 +81,40 @@ export default function DashboardPage() {
   return (
     <div className="page-container pb-28">
 
-      {/* Header */}
-      <div className="page-header flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-black" style={{ color: '#130F2A' }}>{t('dashboard.title')}</h1>
-          <p className="text-xs mt-0.5 font-medium" style={{ color: '#9C94B8' }}>
-            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
+      {/* ── Header ── */}
+      <div className="page-header flex items-center justify-between gap-3">
+        {/* Brand + Greeting */}
+        <div className="flex items-center gap-3 min-w-0">
+          <DukkanMark size={36} />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold truncate" style={{ color: '#9C94B8' }}>
+              {getGreeting(isAr)}
+            </p>
+            <p className="text-base font-black truncate capitalize" style={{ color: '#130F2A' }}>
+              {user?.username ?? 'Dukkan'}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
-            onClick={fetchStats} disabled={loading}
+            onClick={fetchStats}
+            disabled={loading}
             className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90"
             style={{ background: '#EDE9FE', border: '1px solid #DDD6FE' }}
+            aria-label="Refresh"
           >
-            <svg viewBox="0 0 24 24" className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" style={{ color: '#7C3AED' }}>
-              <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg
+              viewBox="0 0 24 24"
+              className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
+              fill="none"
+              style={{ color: '#7C3AED' }}
+            >
+              <path
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              />
             </svg>
           </button>
           <SyncIndicator />
@@ -141,7 +171,7 @@ export default function DashboardPage() {
               {stats.pendingOrders > 0 && (
                 <span className="text-xs font-bold px-1.5 py-0.5 rounded-full self-start"
                   style={{ background: '#FEF3C7', color: '#D97706' }}>
-                  {stats.pendingOrders} ⏳
+                  {stats.pendingOrders} {isAr ? 'معلّق' : 'pending'}
                 </span>
               )}
             </div>
@@ -247,18 +277,41 @@ export default function DashboardPage() {
           <div>
             <p className="section-label">{t('dashboard.quickActions')}</p>
             <div className="grid grid-cols-3 gap-2.5">
-              {[
-                { label: t('dashboard.newOrder'), icon: '+', bg: '#EDE9FE', color: '#7C3AED', border: '#DDD6FE', path: '/orders/new' },
-                { label: t('dashboard.adjustStock'), icon: '◫', bg: '#CFFAFE', color: '#0891B2', border: '#A5F3FC', path: '/inventory' },
-                { label: t('dashboard.viewCustomers'), icon: '⊕', bg: '#D1FAE5', color: '#059669', border: '#A7F3D0', path: '/customers' },
-              ].map((a) => (
-                <button key={a.path} onClick={() => navigate(a.path)}
-                  className="flex flex-col items-center gap-2 py-4 rounded-2xl transition-all active:scale-95"
-                  style={{ background: a.bg, border: `1px solid ${a.border}` }}>
-                  <span className="text-2xl font-black" style={{ color: a.color }}>{a.icon}</span>
-                  <span className="text-xs font-bold text-center leading-tight" style={{ color: a.color }}>{a.label}</span>
-                </button>
-              ))}
+              {/* New Order */}
+              <button
+                onClick={() => navigate('/orders/new')}
+                className="flex flex-col items-center gap-2.5 py-4 rounded-2xl transition-all active:scale-95"
+                style={{ background: '#EDE9FE', border: '1px solid #DDD6FE' }}
+              >
+                <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" style={{ color: '#7C3AED' }}>
+                  <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+                <span className="text-xs font-bold text-center leading-tight" style={{ color: '#7C3AED' }}>{t('dashboard.newOrder')}</span>
+              </button>
+
+              {/* Adjust Stock */}
+              <button
+                onClick={() => navigate('/inventory')}
+                className="flex flex-col items-center gap-2.5 py-4 rounded-2xl transition-all active:scale-95"
+                style={{ background: '#ECFEFF', border: '1px solid #A5F3FC' }}
+              >
+                <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" style={{ color: '#0891B2' }}>
+                  <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="text-xs font-bold text-center leading-tight" style={{ color: '#0891B2' }}>{t('dashboard.adjustStock')}</span>
+              </button>
+
+              {/* View Customers */}
+              <button
+                onClick={() => navigate('/customers')}
+                className="flex flex-col items-center gap-2.5 py-4 rounded-2xl transition-all active:scale-95"
+                style={{ background: '#F0FDF4', border: '1px solid #A7F3D0' }}
+              >
+                <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" style={{ color: '#059669' }}>
+                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M9 11a4 4 0 100-8 4 4 0 000 8z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="text-xs font-bold text-center leading-tight" style={{ color: '#059669' }}>{t('dashboard.viewCustomers')}</span>
+              </button>
             </div>
           </div>
 

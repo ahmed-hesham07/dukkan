@@ -14,17 +14,11 @@ import { useLanguageStore } from '../../store/useLanguageStore';
 
 const STATUSES: OrderStatus[] = ['pending', 'paid', 'delivered', 'cancelled'];
 
-const statusGradients: Record<OrderStatus, string> = {
-  pending:   'linear-gradient(135deg, rgba(245,158,11,0.2), rgba(245,158,11,0.08))',
-  paid:      'linear-gradient(135deg, rgba(16,185,129,0.2), rgba(16,185,129,0.08))',
-  delivered: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(6,182,212,0.08))',
-  cancelled: 'linear-gradient(135deg, rgba(247,37,133,0.2), rgba(247,37,133,0.08))',
-};
-const statusBorders: Record<OrderStatus, string> = {
-  pending:   'rgba(245,158,11,0.3)',
-  paid:      'rgba(16,185,129,0.3)',
-  delivered: 'rgba(124,58,237,0.3)',
-  cancelled: 'rgba(247,37,133,0.3)',
+const statusColors: Record<OrderStatus, { bg: string; border: string; color: string }> = {
+  pending:   { bg: '#FFFBEB', border: '#FDE68A', color: '#D97706' },
+  paid:      { bg: '#F0FDF4', border: '#A7F3D0', color: '#059669' },
+  delivered: { bg: '#EDE9FE', border: '#DDD6FE', color: '#7C3AED' },
+  cancelled: { bg: '#FEF2F2', border: '#FECACA', color: '#DC2626' },
 };
 
 export default function OrderDetailPage() {
@@ -52,14 +46,10 @@ export default function OrderDetailPage() {
   const changeStatus = async (status: OrderStatus) => {
     if (!order) return;
     try {
-      // Always update the local record first — this is the source of truth for offline.
       await localDb.orders.where('clientId').equals(order.clientId).modify({ status });
       setOrder({ ...order, status });
 
       if (!order.synced) {
-        // Order hasn't reached the backend yet. Update the pending sync-queue payload so
-        // the order will be created on the server with the correct status when it syncs.
-        // Calling apiPatch here would 404 because the row doesn't exist yet.
         await localDb.syncQueue
           .filter((item) => item.clientId === order.clientId && item.entity === 'order')
           .modify((item) => {
@@ -69,7 +59,6 @@ export default function OrderDetailPage() {
         return;
       }
 
-      // Order is confirmed on the backend — update it directly.
       if (navigator.onLine) await apiPatch(`/orders/${order.id}/status`, { status });
       showToast(t('msg.statusUpdated'));
     } catch {
@@ -77,15 +66,14 @@ export default function OrderDetailPage() {
     }
   };
 
+  /* ── Loading state ── */
   if (!order) {
     return (
       <div className="page-container flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <svg className="w-10 h-10 text-white/20 animate-spin" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-          </svg>
-          <p className="text-white/30 font-medium">{t('common.loading')}</p>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 rounded-full animate-spin"
+            style={{ borderColor: '#DDD6FE', borderTopColor: '#7C3AED' }} />
+          <p className="text-sm font-medium" style={{ color: '#9C94B8' }}>{t('common.loading')}</p>
         </div>
       </div>
     );
@@ -96,125 +84,122 @@ export default function OrderDetailPage() {
       year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
     }).format(new Date(iso));
 
+  const sc = statusColors[order.status];
+
   return (
-    <div className="page-container">
+    <div className="page-container pb-28">
+
+      {/* ── Header ── */}
       <header className="page-header">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
             className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90 flex-shrink-0"
-            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}
+            style={{ background: '#EDE9FE', border: '1px solid #DDD6FE' }}
           >
-            <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="none">
-              <path d="M19 12H5M5 12l7-7M5 12l7 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" style={{ color: '#7C3AED' }}>
+              <path d="M19 12H5M5 12l7-7M5 12l7 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
-          <div className="flex-1">
-            <h1 className="text-xl font-black text-white">{t('orders.orderDetail')}</h1>
-            <p className="text-xs text-white/40 mt-0.5">{formatDate(order.createdAt)}</p>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-black truncate" style={{ color: '#130F2A' }}>{t('orders.orderDetail')}</h1>
+            <p className="text-xs mt-0.5 font-medium" style={{ color: '#9C94B8' }}>{formatDate(order.createdAt)}</p>
           </div>
           <StatusChip status={order.status} />
         </div>
       </header>
 
       <div className="p-4 space-y-4">
-        {/* Customer info */}
+
+        {/* ── Status highlight banner ── */}
         <div
-          className="rounded-3xl p-4"
-          style={{
-            background: 'rgba(20,20,42,0.85)',
-            border: '1px solid rgba(255,255,255,0.07)',
-          }}
+          className="rounded-2xl px-4 py-3 flex items-center gap-3"
+          style={{ background: sc.bg, border: `1px solid ${sc.border}` }}
         >
-          <p className="text-xs font-bold text-white/30 uppercase tracking-wider mb-2">
-            {t('customers.title')}
-          </p>
-          <p className="font-bold text-white text-lg">
+          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: sc.color }} />
+          <span className="text-sm font-bold capitalize" style={{ color: sc.color }}>
+            {t(`status.${order.status}`)}
+          </span>
+          {!order.synced && (
+            <span className="ms-auto text-xs font-semibold px-2 py-0.5 rounded-full"
+              style={{ background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A' }}>
+              {t('common.pending')}
+            </span>
+          )}
+        </div>
+
+        {/* ── Customer info ── */}
+        <div className="card">
+          <p className="section-label mb-3">{t('customers.title')}</p>
+          <p className="font-bold text-lg" style={{ color: '#130F2A' }}>
             {order.customerName || t('orders.unknownCustomer')}
           </p>
           {order.customerPhone && (
-            <p className="text-sm text-white/40 mt-0.5 font-medium">{order.customerPhone}</p>
+            <p className="text-sm mt-0.5 font-medium" style={{ color: '#9C94B8' }}>{order.customerPhone}</p>
           )}
           {order.notes && (
-            <p
-              className="text-sm mt-3 pt-3 text-white/50 italic"
-              style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
-            >
+            <p className="text-sm mt-3 pt-3 italic font-medium" style={{ color: '#9C94B8', borderTop: '1px solid #F3F0FF' }}>
               {order.notes}
             </p>
           )}
         </div>
 
-        {/* Items */}
-        <div
-          className="rounded-3xl p-4"
-          style={{
-            background: 'rgba(20,20,42,0.85)',
-            border: '1px solid rgba(255,255,255,0.07)',
-          }}
-        >
-          <p className="text-xs font-bold text-white/30 uppercase tracking-wider mb-3">
-            {t('orders.items')}
-          </p>
-          <div className="space-y-2">
+        {/* ── Order items ── */}
+        <div className="card">
+          <p className="section-label mb-3">{t('orders.items')}</p>
+          <div className="space-y-0">
             {order.items.map((item, idx) => (
               <div
                 key={idx}
                 className="flex items-center justify-between py-3"
-                style={{ borderBottom: idx < order.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
+                style={{ borderBottom: idx < order.items.length - 1 ? '1px solid #F3F0FF' : 'none' }}
               >
-                <div className="flex-1">
-                  <p className="font-semibold text-white">{item.name}</p>
-                  <p className="text-xs text-white/40 mt-0.5">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold truncate" style={{ color: '#130F2A' }}>{item.name}</p>
+                  <p className="text-xs font-medium mt-0.5" style={{ color: '#9C94B8' }}>
                     {item.price} × {item.quantity}
                   </p>
                 </div>
-                <span
-                  className="font-black text-base ms-4 flex-shrink-0"
-                  style={{
-                    background: 'linear-gradient(135deg, #a855f7, #06b6d4)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                  }}
-                >
+                <span className="font-black text-base ms-4 flex-shrink-0" style={{ color: '#7C3AED' }}>
                   {(item.price * item.quantity).toFixed(2)}
                 </span>
               </div>
             ))}
           </div>
+
+          {/* Total */}
           <div
             className="flex justify-between items-center mt-4 pt-4"
-            style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
+            style={{ borderTop: '1.5px solid #E8E6F5' }}
           >
-            <span className="font-bold text-white/70">{t('orders.total')}</span>
-            <span
-              className="text-2xl font-black"
-              style={{
-                background: 'linear-gradient(135deg, #a855f7, #06b6d4)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
+            <span className="font-bold" style={{ color: '#6B5B9A' }}>{t('orders.total')}</span>
+            <span className="text-2xl font-black" style={{ color: '#7C3AED' }}>
               {order.total.toFixed(2)}
-              <span className="text-sm ms-1" style={{ WebkitTextFillColor: 'rgba(255,255,255,0.4)' }}>
+              <span className="text-sm font-semibold ms-1" style={{ color: '#9C94B8' }}>
                 {t('common.egp')}
               </span>
             </span>
           </div>
         </div>
 
-        {/* Payment method + discount info */}
+        {/* ── Payment method + discount ── */}
         {(order.paymentMethod || order.discountAmount > 0) && (
-          <div className="rounded-3xl p-4" style={{ background: 'rgba(20,20,42,0.85)', border: '1px solid rgba(255,255,255,0.07)' }}>
-            <p className="text-xs font-bold text-white/30 uppercase tracking-wider mb-3">{t('payment.method')}</p>
-            <div className="flex flex-wrap gap-2 items-center">
+          <div className="card">
+            <p className="section-label mb-3">{t('payment.method')}</p>
+            <div className="flex flex-wrap gap-2">
               {order.paymentMethod && (
-                <span className="px-3 py-1 rounded-full text-sm font-bold" style={{ background: 'linear-gradient(135deg,rgba(124,58,237,0.2),rgba(37,99,235,0.2))', border: '1px solid rgba(124,58,237,0.3)', color: '#a78bfa' }}>
+                <span
+                  className="px-3 py-1.5 rounded-full text-sm font-bold"
+                  style={{ background: '#EDE9FE', color: '#7C3AED', border: '1px solid #DDD6FE' }}
+                >
                   {t(`payment.${order.paymentMethod}`)}
                 </span>
               )}
               {order.discountAmount > 0 && (
-                <span className="px-3 py-1 rounded-full text-sm font-bold" style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#fbbf24' }}>
+                <span
+                  className="px-3 py-1.5 rounded-full text-sm font-bold"
+                  style={{ background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A' }}
+                >
                   {t('discount.label')}: -{order.discountAmount.toFixed(2)} {t('common.egp')}
                   {order.discountReason && ` (${order.discountReason})`}
                 </span>
@@ -223,29 +208,23 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* Change status */}
-        <div
-          className="rounded-3xl p-4"
-          style={{
-            background: 'rgba(20,20,42,0.85)',
-            border: '1px solid rgba(255,255,255,0.07)',
-          }}
-        >
-          <p className="text-xs font-bold text-white/30 uppercase tracking-wider mb-3">
-            {t('orders.changeStatus')}
-          </p>
+        {/* ── Change status ── */}
+        <div className="card">
+          <p className="section-label mb-3">{t('orders.changeStatus')}</p>
           <div className="grid grid-cols-2 gap-2.5">
             {STATUSES.map((s) => {
               const isActive = order.status === s;
+              const c = statusColors[s];
               return (
                 <button
                   key={s}
                   onClick={() => changeStatus(s)}
                   disabled={isActive}
-                  className="py-3.5 rounded-2xl text-sm font-bold transition-all duration-200 active:scale-95 disabled:cursor-default"
-                  style={isActive
-                    ? { background: statusGradients[s], border: `1px solid ${statusBorders[s]}` }
-                    : { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }
+                  className="py-3 rounded-2xl text-sm font-bold transition-all duration-200 active:scale-95 disabled:cursor-default"
+                  style={
+                    isActive
+                      ? { background: c.bg, border: `1.5px solid ${c.border}`, color: c.color }
+                      : { background: '#F5F4FF', border: '1px solid #E2DFF0', color: '#9C94B8' }
                   }
                 >
                   <StatusChip status={s} />
@@ -255,7 +234,7 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Return Items */}
+        {/* ── Actions ── */}
         {order.synced && order.status !== 'cancelled' && (
           <button
             className="btn-danger no-print"
@@ -263,21 +242,19 @@ export default function OrderDetailPage() {
           >
             <span className="flex items-center justify-center gap-2">
               <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
-                <path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0M9 12l3-3m0 0l3 3m-3-3v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0M9 12l3-3m0 0l3 3m-3-3v6"
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               {t('returns.new')}
             </span>
           </button>
         )}
 
-        <button
-          className="btn-secondary no-print"
-          onClick={handlePrint}
-        >
+        <button className="btn-secondary no-print" onClick={handlePrint}>
           <span className="flex items-center justify-center gap-2">
             <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
               <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             {t('invoice.print')}
           </span>
@@ -286,6 +263,7 @@ export default function OrderDetailPage() {
         <div className="hidden">
           <InvoicePrint ref={printRef} order={order} />
         </div>
+
       </div>
     </div>
   );

@@ -28,8 +28,9 @@ export const InvoicePrint = forwardRef<HTMLDivElement, Props>(({ order }, ref) =
           max-width: 800px;
           margin: 0 auto;
           padding: 24px;
-          color: #1a1a2e;
+          color: #130F2A;
           font-family: 'Cairo', sans-serif;
+          background: #ffffff;
         }
 
         .invoice-header {
@@ -38,17 +39,17 @@ export const InvoicePrint = forwardRef<HTMLDivElement, Props>(({ order }, ref) =
           align-items: flex-start;
           margin-bottom: 32px;
           padding-bottom: 16px;
-          border-bottom: 2px solid #0f3460;
+          border-bottom: 2px solid #7C3AED;
         }
 
         .invoice-title {
           font-size: 32px;
           font-weight: 700;
-          color: #0f3460;
+          color: #7C3AED;
         }
 
-        .invoice-meta { text-align: left; font-size: 14px; color: #666; }
-        .invoice-number { font-size: 16px; font-weight: 600; color: #0f3460; }
+        .invoice-meta { text-align: left; font-size: 14px; color: #6B5B9A; }
+        .invoice-number { font-size: 16px; font-weight: 600; color: #7C3AED; }
 
         .customer-block {
           background: #f8f9fa;
@@ -68,7 +69,7 @@ export const InvoicePrint = forwardRef<HTMLDivElement, Props>(({ order }, ref) =
         }
 
         th {
-          background: #0f3460;
+          background: #7C3AED;
           color: white;
           padding: 10px 12px;
           font-size: 14px;
@@ -85,10 +86,10 @@ export const InvoicePrint = forwardRef<HTMLDivElement, Props>(({ order }, ref) =
         tr:nth-child(even) { background: #f8f9fa; }
 
         .total-row {
-          border-top: 2px solid #0f3460;
+          border-top: 2px solid #7C3AED;
           font-size: 18px;
           font-weight: 700;
-          color: #0f3460;
+          color: #7C3AED;
         }
 
         .footer {

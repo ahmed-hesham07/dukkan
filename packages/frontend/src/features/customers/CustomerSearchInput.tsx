@@ -44,7 +44,7 @@ export function CustomerSearchInput({ onSelect, selected }: Props) {
         setResults(merged);
       }
     } catch {
-      // fallback to local
+      // fallback to local results
     } finally {
       setLoading(false);
     }
@@ -57,7 +57,6 @@ export function CustomerSearchInput({ onSelect, selected }: Props) {
 
   const saveNewCustomer = async () => {
     if (!newName.trim() || !query.trim() || !tenantId) return;
-    // Always use a valid UUID so the sync queue can send it to PostgreSQL safely.
     const id = uuidv4();
     const now = new Date().toISOString();
     const customer: LocalCustomer = {
@@ -70,7 +69,6 @@ export function CustomerSearchInput({ onSelect, selected }: Props) {
       synced: false,
     };
     await localDb.customers.add({ ...customer, localId: undefined });
-    // Enqueue the customer BEFORE the order so the backend has the FK target ready.
     await enqueue(id, 'customer', 'create', { phone: customer.phone, name: customer.name }, tenantId);
     onSelect(customer);
     setShowNew(false);
@@ -78,23 +76,21 @@ export function CustomerSearchInput({ onSelect, selected }: Props) {
     setResults([]);
   };
 
+  /* ── Selected state ── */
   if (selected) {
     return (
       <div
         className="flex items-center justify-between rounded-2xl p-3.5"
-        style={{
-          background: 'rgba(16,185,129,0.1)',
-          border: '1px solid rgba(16,185,129,0.3)',
-        }}
+        style={{ background: '#F0FDF4', border: '1px solid #A7F3D0' }}
       >
         <div>
-          <p className="font-bold text-white">{selected.name}</p>
-          <p className="text-sm mt-0.5" style={{ color: '#10b981' }}>{selected.phone}</p>
+          <p className="font-bold" style={{ color: '#130F2A' }}>{selected.name}</p>
+          <p className="text-sm mt-0.5 font-medium" style={{ color: '#059669' }}>{selected.phone}</p>
         </div>
         <button
           onClick={() => onSelect(null)}
           className="text-xs font-bold px-2.5 py-1.5 rounded-full transition-all active:scale-95"
-          style={{ color: '#f72585', background: 'rgba(247,37,133,0.12)' }}
+          style={{ color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA' }}
         >
           {t('customers.change')}
         </button>
@@ -102,16 +98,23 @@ export function CustomerSearchInput({ onSelect, selected }: Props) {
     );
   }
 
+  /* ── Search state ── */
   return (
     <div className="space-y-2">
       <div className="relative">
-        <svg viewBox="0 0 24 24" className="absolute start-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none" fill="none">
-          <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        <svg
+          viewBox="0 0 24 24"
+          className="absolute start-3.5 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none"
+          fill="none"
+          style={{ color: '#9C94B8' }}
+        >
+          <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
         <input
           className="input-field"
           placeholder={t('customers.search')}
-          type="tel" inputMode="numeric"
+          type="tel"
+          inputMode="numeric"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{ paddingInlineStart: '2.75rem' }}
@@ -119,45 +122,47 @@ export function CustomerSearchInput({ onSelect, selected }: Props) {
       </div>
 
       {loading && (
-        <p className="text-xs text-white/30 text-center py-2">{t('common.loading')}</p>
+        <p className="text-xs font-medium text-center py-2" style={{ color: '#9C94B8' }}>
+          {t('common.loading')}
+        </p>
       )}
 
+      {/* Results dropdown */}
       {results.length > 0 && (
         <div
           className="rounded-2xl overflow-hidden"
-          style={{ border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
+          style={{ background: '#FFFFFF', border: '1px solid #E8E6F5', boxShadow: '0 4px 16px rgba(19,15,42,0.1)' }}
         >
           {results.map((c, i) => (
             <button
               key={c.phone}
               onClick={() => { onSelect(c); setQuery(''); setResults([]); }}
-              className="w-full text-start px-4 py-3.5 transition-all active:scale-98"
+              className="w-full text-start px-4 py-3.5 transition-all active:bg-violet-50"
               style={{
-                background: 'rgba(20,20,42,0.95)',
-                borderBottom: i < results.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                borderBottom: i < results.length - 1 ? '1px solid #F3F0FF' : 'none',
               }}
             >
-              <p className="font-semibold text-white">{c.name}</p>
-              <p className="text-sm text-white/40 mt-0.5">{c.phone}</p>
+              <p className="font-semibold" style={{ color: '#130F2A' }}>{c.name}</p>
+              <p className="text-sm mt-0.5 font-medium" style={{ color: '#9C94B8' }}>{c.phone}</p>
             </button>
           ))}
         </div>
       )}
 
+      {/* Not found panel */}
       {query.length >= 3 && results.length === 0 && !loading && (
         <div
           className="rounded-2xl p-4 space-y-3"
-          style={{
-            background: 'rgba(20,20,42,0.85)',
-            border: '1px solid rgba(255,255,255,0.07)',
-          }}
+          style={{ background: '#F5F4FF', border: '1px solid #E2DFF0' }}
         >
-          <p className="text-white/40 text-sm text-center">{t('customers.notFound')}</p>
+          <p className="text-sm text-center font-medium" style={{ color: '#9C94B8' }}>
+            {t('customers.notFound')}
+          </p>
           {!showNew ? (
             <button
               onClick={() => setShowNew(true)}
               className="w-full text-sm font-bold py-2.5 rounded-xl transition-all active:scale-95"
-              style={{ background: 'rgba(124,58,237,0.15)', color: '#a855f7', border: '1px solid rgba(124,58,237,0.2)' }}
+              style={{ background: '#EDE9FE', color: '#7C3AED', border: '1px solid #DDD6FE' }}
             >
               + {t('customers.addNew')}
             </button>

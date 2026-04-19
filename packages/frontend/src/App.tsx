@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { BottomNav } from './components/BottomNav';
 import { Toast } from './components/Toast';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { DukkanMark } from './components/DukkanLogo';
 import { initSyncEngine } from './offline/syncEngine';
 import { pullFromServer } from './offline/pullSync';
 import { useAuthStore } from './store/useAuthStore';
@@ -22,10 +23,12 @@ const SettingsPage = lazy(() => import('./features/settings/SettingsPage'));
 function LoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#F5F4FF' }}>
-      <div className="text-center">
-        <div className="text-4xl font-black mb-2" style={{ color: '#7C3AED' }}>دكان</div>
-        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mx-auto"
-          style={{ borderColor: '#7C3AED', borderTopColor: 'transparent' }} />
+      <div className="flex flex-col items-center gap-4">
+        <DukkanMark size={52} />
+        <div
+          className="w-5 h-5 border-2 rounded-full animate-spin"
+          style={{ borderColor: '#DDD6FE', borderTopColor: '#7C3AED' }}
+        />
       </div>
     </div>
   );
