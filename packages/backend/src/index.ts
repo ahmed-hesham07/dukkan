@@ -11,6 +11,8 @@ import { productsRouter } from './features/inventory/router.js';
 import { ordersRouter } from './features/orders/router.js';
 import { invoicesRouter } from './features/invoices/router.js';
 import { syncRouter } from './features/sync/router.js';
+import { dashboardRouter } from './features/dashboard/router.js';
+import { returnsRouter } from './features/returns/router.js';
 import { authMiddleware } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 
@@ -38,6 +40,8 @@ app.use('/api/v1/products', productsRouter);
 app.use('/api/v1/orders', ordersRouter);
 app.use('/api/v1/invoices', invoicesRouter);
 app.use('/api/v1/sync', syncRouter);
+app.use('/api/v1/dashboard', dashboardRouter);
+app.use('/api/v1', returnsRouter);
 
 // ── Error handling ─────────────────────────────────────────────────────────────
 app.use(notFound);

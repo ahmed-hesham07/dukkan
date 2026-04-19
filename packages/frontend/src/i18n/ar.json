@@ -4,10 +4,30 @@
     "tagline": "نظام إدارة المحل"
   },
   "nav": {
+    "dashboard": "الرئيسية",
     "orders": "الطلبات",
     "inventory": "المخزون",
     "customers": "العملاء",
     "settings": "الإعدادات"
+  },
+  "dashboard": {
+    "title": "لوحة التحكم",
+    "revenue": "إيرادات اليوم",
+    "orders": "طلبات اليوم",
+    "profit": "ربح اليوم",
+    "debt": "ديون العملاء",
+    "lowStock": "مخزون منخفض",
+    "topProducts": "أكثر المنتجات مبيعاً",
+    "quickActions": "إجراءات سريعة",
+    "vsYesterday": "مقارنةً بالأمس",
+    "pending": "طلبات معلقة",
+    "noLowStock": "المخزون كافٍ",
+    "noSales": "لا مبيعات اليوم",
+    "refresh": "تحديث",
+    "newOrder": "طلب جديد",
+    "adjustStock": "تعديل المخزون",
+    "viewCustomers": "عرض العملاء",
+    "qty": "× الكمية"
   },
   "orders": {
     "title": "الطلبات",
@@ -56,6 +76,8 @@
     "add": "إضافة منتج",
     "name": "اسم المنتج",
     "price": "السعر",
+    "costPrice": "سعر التكلفة",
+    "margin": "هامش الربح",
     "stock": "المخزون",
     "lowStock": "مخزون منخفض",
     "adjust": "تعديل المخزون",
@@ -106,6 +128,48 @@
     "version": "الإصدار",
     "roleOwner": "مالك",
     "roleCashier": "كاشير"
+  },
+  "payment": {
+    "method": "طريقة الدفع",
+    "cash": "نقداً",
+    "card": "بطاقة بنكية",
+    "vodafone_cash": "فودافون كاش",
+    "instapay": "إنستاباي",
+    "credit": "آجل (دين)"
+  },
+  "discount": {
+    "label": "خصم",
+    "amount": "قيمة الخصم",
+    "reason": "سبب الخصم",
+    "applied": "تم تطبيق خصم"
+  },
+  "returns": {
+    "title": "الإرجاع",
+    "new": "إرجاع منتجات",
+    "quantity": "الكمية المُرجَعة",
+    "refundMethod": "طريقة الاسترداد",
+    "cash": "نقداً",
+    "card": "بطاقة",
+    "vodafone_cash": "فودافون كاش",
+    "instapay": "إنستاباي",
+    "credit_note": "رصيد دائن",
+    "submit": "تأكيد الإرجاع",
+    "success": "تم الإرجاع بنجاح",
+    "noReturns": "لا توجد عمليات إرجاع",
+    "noNetwork": "يتطلب الإرجاع اتصالاً بالإنترنت"
+  },
+  "credit": {
+    "balance": "الرصيد",
+    "owed": "مديون بـ",
+    "clear": "لا ديون",
+    "recordPayment": "تسجيل دفعة",
+    "debit": "دين جديد",
+    "payment": "دفعة",
+    "events": "سجل الديون والمدفوعات",
+    "amount": "المبلغ",
+    "notes": "ملاحظات",
+    "noEvents": "لا توجد معاملات",
+    "paymentSuccess": "تم تسجيل الدفعة"
   },
   "msg": {
     "noInternet": "لا يوجد اتصال بالإنترنت",

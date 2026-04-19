@@ -5,3 +5,5 @@ export * from './invoice.js';
 export * from './sync.js';
 export * from './api.js';
 export * from './auth.js';
+export * from './credit.js';
+export * from './return.js';

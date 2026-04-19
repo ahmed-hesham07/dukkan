@@ -13,6 +13,7 @@ export async function createProduct(
   data: {
     name: string;
     price: number;
+    costPrice?: number;
     stock?: number;
     lowStockThreshold?: number;
   },
@@ -24,6 +25,7 @@ export async function createProduct(
       tenant_id: tenantId,
       name: data.name,
       price: data.price,
+      cost_price: data.costPrice ?? null,
       stock: data.stock ?? 0,
       low_stock_threshold: data.lowStockThreshold ?? 5,
     })
@@ -53,12 +55,13 @@ export async function adjustStock(id: string, delta: number, tenantId: string) {
 
 export async function updateProduct(
   id: string,
-  data: { name?: string; price?: number; lowStockThreshold?: number },
+  data: { name?: string; price?: number; costPrice?: number; lowStockThreshold?: number },
   tenantId: string
 ) {
   const updates: Record<string, unknown> = {};
   if (data.name !== undefined) updates.name = data.name;
   if (data.price !== undefined) updates.price = data.price;
+  if (data.costPrice !== undefined) updates.cost_price = data.costPrice;
   if (data.lowStockThreshold !== undefined)
     updates.low_stock_threshold = data.lowStockThreshold;
 

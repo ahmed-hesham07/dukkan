@@ -43,15 +43,34 @@ Dukkan is a monorepo POS and operations system designed to run on cheap Android 
 
 ## Features
 
+### Dashboard
+- Financial KPIs at a glance: **today's revenue**, **order count**, **profit**, and **outstanding customer debt**
+- Revenue comparison vs. yesterday (percentage change)
+- **Low-stock alerts** — chips linking directly to the inventory page
+- **Top 5 products** by quantity sold today with medal ranks
+- **Quick-action buttons**: New Order, Adjust Stock, View Customers
+- Auto-refresh on mount; manual refresh button
+
 ### Orders
 - Create a full order with customer lookup, line items, and notes in under 10 seconds
 - Quick-add chips for products already in inventory
+- **Payment method selector**: Cash · Card · Vodafone Cash · InstaPay · Credit (on account)
+- **Discount support**: apply a flat discount amount with an optional reason; net total = subtotal − discount
 - Per-order status lifecycle: `pending → paid → delivered → cancelled`
 - Offline-first: orders are saved to IndexedDB immediately; synced to the server in the background
 - Status changes on unsynced orders update the sync queue payload directly — no 404s
+- **Return Items button** on each synced order (navigates to the return flow)
+
+### Returns & Refunds
+- Select per-item return quantities (capped at originally ordered qty)
+- Choose refund method: Cash · Card · Vodafone Cash · InstaPay · Credit Note
+- Stock is automatically restored for returned products on the server
+- Requires an internet connection — shows a warning when offline
+- Accessible from the Order Detail page via "Return Items" button
 
 ### Inventory
-- Add and manage products with name, price, stock count, and low-stock threshold
+- Add and manage products with name, price, **cost price**, stock count, and low-stock threshold
+- **Profit margin %** displayed on each product row: `((price − costPrice) / price × 100)%`
 - Stock adjustment panel (add or subtract) with confirmation
 - Visual low-stock warnings (red glow) when stock ≤ threshold
 - Stock changes enqueued for sync
@@ -59,7 +78,15 @@ Dukkan is a monorepo POS and operations system designed to run on cheap Android 
 ### Customers
 - Search by phone number (debounced, 350 ms)
 - Inline new customer creation during order flow — saved with a real UUID and enqueued for sync before the order
-- Purchase history per customer with order total spent
+- **Tabs**: Purchase History · Credit & Payment History
+- **Balance card**: green (no debt) or red (owes money) with exact amount
+- **Record Payment modal**: enter amount and optional notes → `POST /customers/:id/payments`
+- Credit event list shows each debit (order on account) and payment with date and amount
+
+### Customer Debt & Credit Ledger
+- Every order paid with method `credit` automatically creates a `customer_credit_events` debit entry (amount = order total after discount)
+- Cashiers record cash payments against customer balances via the Record Payment flow
+- Outstanding balance = Σ(debit) − Σ(payment), shown on Customer Detail and Dashboard
 
 ### Invoices
 - Printable A4-formatted invoice from any order using `react-to-print`
@@ -98,7 +125,7 @@ Dukkan is a monorepo POS and operations system designed to run on cheap Android 
 | Vite | 5 | Build tool + dev server |
 | Tailwind CSS | 3 | Utility-first styling |
 | Zustand | 4 | Global state (auth, app, language) |
-| Dexie.js | 3 | IndexedDB ORM (offline storage) |
+| Dexie.js | 3 | IndexedDB ORM (offline storage) — **schema v3** |
 | i18next | 23 | Internationalization (AR + EN) |
 | React Router | 6 | Client-side routing |
 | Axios | 1 | HTTP client with interceptors |
@@ -149,8 +176,10 @@ dukkan/                          ← npm workspace root
 │   │       ├── types/
 │   │       │   ├── auth.ts      ← LoginInput, RegisterInput, AuthUser, AuthResponse
 │   │       │   ├── customer.ts  ← Customer
-│   │       │   ├── order.ts     ← Order, OrderItem, CreateOrderInput
-│   │       │   ├── product.ts   ← Product
+│   │       │   ├── order.ts     ← Order, OrderItem, CreateOrderInput, PaymentMethod
+│   │       │   ├── product.ts   ← Product (with costPrice)
+│   │       │   ├── credit.ts    ← CustomerCreditEvent, CustomerBalance, RecordPaymentInput
+│   │       │   ├── return.ts    ← OrderReturn, ReturnItem, CreateReturnInput, RefundMethod
 │   │       │   ├── sync.ts      ← SyncQueueItem, SyncBatchItem, SyncBatchResult
 │   │       │   └── api.ts       ← ApiResponse wrapper
 │   │       └── constants.ts     ← SYNC_MAX_RETRIES, LOW_STOCK_THRESHOLD, etc.
@@ -162,14 +191,17 @@ dukkan/                          ← npm workspace root
 │   │       │   ├── types.ts     ← Kysely Database interface (all tables typed)
 │   │       │   ├── migrate.ts   ← Migration runner
 │   │       │   └── migrations/
-│   │       │       ├── 001_initial.sql      ← Core schema
-│   │       │       └── 002_multi_tenant.sql ← Tenants, users, tenant_id columns
+│   │       │       ├── 001_initial.sql             ← Core schema
+│   │       │       ├── 002_multi_tenant.sql        ← Tenants, users, tenant_id columns
+│   │       │       └── 003_business_features.sql   ← Payment/discount/cost/credit/returns
 │   │       ├── features/
 │   │       │   ├── auth/        ← POST /auth/register, POST /auth/login
-│   │       │   ├── orders/      ← CRUD + status update
-│   │       │   ├── customers/   ← Phone search + upsert
-│   │       │   ├── inventory/   ← Products + stock adjustment
+│   │       │   ├── orders/      ← CRUD + status update + payment/discount/credit logic
+│   │       │   ├── customers/   ← Phone search + upsert + balance + credit events
+│   │       │   ├── inventory/   ← Products + stock adjustment + cost price
 │   │       │   ├── invoices/    ← Invoice data endpoint
+│   │       │   ├── dashboard/   ← GET /dashboard (KPI aggregation)
+│   │       │   ├── returns/     ← POST+GET /orders/:id/returns, GET /returns/:id
 │   │       │   └── sync/        ← POST /sync/batch (offline sync processor)
 │   │       ├── middleware/
 │   │       │   ├── auth.ts      ← JWT verification, req.user injection
@@ -184,22 +216,23 @@ dukkan/                          ← npm workspace root
 │       └── src/
 │           ├── api/
 │           │   └── client.ts    ← Axios instance, Bearer interceptor, 401 auto-logout
-│           ├── components/      ← BottomNav, Toast, StatusChip, SyncIndicator, etc.
+│           ├── components/      ← BottomNav (5 tabs), Toast, StatusChip, SyncIndicator, etc.
 │           ├── features/
 │           │   ├── auth/        ← LoginPage, RegisterPage
-│           │   ├── orders/      ← OrdersPage, NewOrderPage, OrderDetailPage
+│           │   ├── dashboard/   ← DashboardPage (home /)
+│           │   ├── orders/      ← OrdersPage, NewOrderPage, OrderDetailPage, ReturnPage
 │           │   ├── customers/   ← CustomersPage, CustomerDetailPage, CustomerSearchInput
-│           │   ├── inventory/   ← InventoryPage
+│           │   ├── inventory/   ← InventoryPage (with cost price + margin)
 │           │   ├── invoices/    ← InvoicePrint (print-only component)
 │           │   └── settings/    ← SettingsPage (language, sync, logout)
 │           ├── i18n/
-│           │   ├── ar.json      ← Arabic strings
-│           │   ├── en.json      ← English strings
+│           │   ├── ar.json      ← Arabic strings (full coverage incl. new features)
+│           │   ├── en.json      ← English strings (full coverage incl. new features)
 │           │   └── config.ts    ← i18next setup
 │           ├── lib/
 │           │   └── logger.ts    ← Client-side structured logger (console dev, JSON prod)
 │           ├── offline/
-│           │   ├── db.ts        ← Dexie schema (v2: orders, customers, products, syncQueue)
+│           │   ├── db.ts        ← Dexie schema v3: paymentMethod, discountAmount, costPrice
 │           │   ├── queue.ts     ← enqueue, markDone, markFailed, markDead
 │           │   └── syncEngine.ts ← Batch sync loop, backoff, dead-letter handling
 │           └── store/
@@ -249,9 +282,10 @@ dukkan/                          ← npm workspace root
 | `id` | UUID PK | |
 | `tenant_id` | UUID FK → tenants | CASCADE delete |
 | `name` | VARCHAR(120) | |
-| `price` | NUMERIC(10,2) | ≥ 0 |
+| `price` | NUMERIC(10,2) | Selling price ≥ 0 |
+| `cost_price` | NUMERIC(10,2) | Optional purchase cost — used for profit calculation |
 | `stock` | INT | ≥ 0 |
-| `low_stock_threshold` | INT | Default 5 |
+| `low_stock_threshold` | INT | Default 5 — triggers alert when `stock ≤ threshold` |
 | `created_at` / `updated_at` | TIMESTAMPTZ | |
 
 ### `orders`
@@ -262,7 +296,10 @@ dukkan/                          ← npm workspace root
 | `tenant_id` | UUID FK → tenants | CASCADE delete |
 | `customer_id` | UUID FK → customers | SET NULL on customer delete; nullable |
 | `status` | VARCHAR(20) | `pending` \| `paid` \| `delivered` \| `cancelled` |
-| `total` | NUMERIC(10,2) | |
+| `payment_method` | VARCHAR(30) | `cash` \| `card` \| `vodafone_cash` \| `instapay` \| `credit` |
+| `total` | NUMERIC(10,2) | Final amount after discount |
+| `discount_amount` | NUMERIC(10,2) | Default 0 |
+| `discount_reason` | VARCHAR(120) | Optional text explaining the discount |
 | `notes` | TEXT | Nullable |
 | `created_at` | TIMESTAMPTZ | Device-generated timestamp |
 | `synced_at` | TIMESTAMPTZ | Server arrival time |
@@ -276,6 +313,42 @@ dukkan/                          ← npm workspace root
 | `name` | VARCHAR(120) | Snapshot at order time |
 | `price` | NUMERIC(10,2) | Snapshot at order time |
 | `quantity` | INT | > 0 |
+
+### `customer_credit_events` _(new)_
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → tenants | CASCADE delete |
+| `customer_id` | UUID FK → customers | CASCADE delete |
+| `amount` | NUMERIC(10,2) | > 0 always |
+| `type` | VARCHAR(20) | `debit` (owes money) \| `payment` (paid money) |
+| `order_id` | UUID FK → orders | SET NULL; links debit to the originating order |
+| `notes` | TEXT | Optional |
+| `created_at` | TIMESTAMPTZ | |
+
+Balance formula: `SUM(debit) − SUM(payment)` — positive balance means customer still owes money.
+
+### `returns` _(new)_
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `tenant_id` | UUID FK → tenants | CASCADE delete |
+| `order_id` | UUID FK → orders | |
+| `total` | NUMERIC(10,2) | Sum of returned item values |
+| `refund_method` | VARCHAR(30) | `cash` \| `card` \| `vodafone_cash` \| `instapay` \| `credit_note` |
+| `notes` | TEXT | Optional |
+| `created_at` | TIMESTAMPTZ | |
+
+### `return_items` _(new)_
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `return_id` | UUID FK → returns | CASCADE delete |
+| `order_item_id` | UUID FK → order_items | SET NULL |
+| `product_id` | UUID FK → products | SET NULL |
+| `name` | VARCHAR(120) | Snapshot from original item |
+| `price` | NUMERIC(10,2) | Snapshot from original item |
+| `quantity` | INT | > 0; ≤ original ordered quantity |
 
 ### `sync_log`
 | Column | Type | Notes |
@@ -310,6 +383,32 @@ Validation:
 - `username`: required, min 3 chars
 - `password`: required, min 6 chars
 
+### Dashboard _(new)_
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/dashboard` | Returns all KPIs for today in a single response |
+
+**Response shape:**
+```json
+{
+  "todayRevenue": 12450.00,
+  "yesterdayRevenue": 9800.00,
+  "todayOrders": 23,
+  "pendingOrders": 4,
+  "todayProfit": 3210.00,
+  "outstandingDebt": 5600.00,
+  "lowStockProducts": [
+    { "id": "uuid", "name": "Pepsi 1L", "stock": 2, "threshold": 5 }
+  ],
+  "topProducts": [
+    { "name": "Pepsi 1L", "totalQty": 48, "totalRevenue": 2400.00 }
+  ]
+}
+```
+
+All KPI queries run in parallel via `Promise.all`. Profit is calculated as `(price − cost_price) × quantity` for items in completed orders today.
+
 ### Orders
 
 | Method | Path | Query / Body | Description |
@@ -319,19 +418,71 @@ Validation:
 | `GET` | `/api/v1/orders/:id` | — | Get single order with items |
 | `PATCH` | `/api/v1/orders/:id/status` | `{ status }` | Update order status |
 
+**`CreateOrderInput` (updated):**
+```json
+{
+  "clientId": "uuid",
+  "customerId": "uuid (optional)",
+  "status": "pending",
+  "paymentMethod": "cash | card | vodafone_cash | instapay | credit",
+  "total": 450.00,
+  "discountAmount": 50.00,
+  "discountReason": "loyalty discount",
+  "notes": "optional",
+  "items": [{ "productId": "uuid", "name": "Pepsi", "price": 10.00, "quantity": 5 }],
+  "createdAt": "2026-04-19T14:00:00Z"
+}
+```
+
+When `paymentMethod === "credit"` and a valid `customerId` is provided, a `customer_credit_events` debit row is auto-inserted inside the same DB transaction.
+
+### Returns _(new)_
+
+| Method | Path | Body | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/orders/:id/returns` | `CreateReturnInput` | Process a return — validates quantities, restores stock |
+| `GET` | `/api/v1/orders/:id/returns` | — | List all returns for an order |
+| `GET` | `/api/v1/returns/:id` | — | Get a single return with items |
+
+**`CreateReturnInput`:**
+```json
+{
+  "items": [{ "orderItemId": "uuid", "quantity": 2 }],
+  "refundMethod": "cash | card | vodafone_cash | instapay | credit_note",
+  "notes": "optional"
+}
+```
+
+Validations:
+- Each `orderItemId` must belong to the specified order
+- `quantity` must not exceed the originally ordered quantity
+- Stock restoration runs inside the same transaction as the return insert
+
 ### Customers
 
-| Method | Path | Query | Description |
+| Method | Path | Query / Body | Description |
 |---|---|---|---|
 | `GET` | `/api/v1/customers` | `?phone=<query>` | Search by phone number |
 | `POST` | `/api/v1/customers` | `{ phone, name }` | Upsert (update name if phone exists) |
+| `GET` | `/api/v1/customers/:id/orders` | — | Get all orders for a customer |
+| `GET` | `/api/v1/customers/:id/balance` | — | Get outstanding balance _(new)_ |
+| `GET` | `/api/v1/customers/:id/credit-events` | — | List credit/payment history _(new)_ |
+| `POST` | `/api/v1/customers/:id/payments` | `{ amount, notes? }` | Record a cash payment _(new)_ |
+
+**Balance response:**
+```json
+{ "data": { "customerId": "uuid", "balance": 450.00 } }
+```
+
+Balance is always `≥ 0`. A value of `0` means fully settled.
 
 ### Inventory
 
 | Method | Path | Body | Description |
 |---|---|---|---|
 | `GET` | `/api/v1/products` | — | List all products for tenant |
-| `POST` | `/api/v1/products` | `{ name, price, stock?, lowStockThreshold? }` | Create product |
+| `POST` | `/api/v1/products` | `{ name, price, costPrice?, stock?, lowStockThreshold? }` | Create product _(costPrice is new)_ |
+| `PATCH` | `/api/v1/products/:id` | `{ name?, price?, costPrice?, lowStockThreshold? }` | Update product _(costPrice is new)_ |
 | `PATCH` | `/api/v1/products/:id/stock` | `{ delta }` | Adjust stock by delta (positive or negative) |
 
 ### Invoices
@@ -380,7 +531,7 @@ User action (create order / adjust stock / add customer)
         ▼
 ┌─────────────────┐
 │   IndexedDB     │  ← Written immediately, UI responds instantly
-│  (Dexie v2)     │
+│  (Dexie v3)     │
 └────────┬────────┘
          │
          ▼
@@ -402,6 +553,18 @@ User action (create order / adjust stock / add customer)
   │  permanent → markDead       │  stop retrying
   └───────────────┘
 ```
+
+### IndexedDB Schema (v3)
+
+Dexie database name: `dukkan_v1`, current version: **3**
+
+| Version | Changes |
+|---|---|
+| v1 | Initial schema — orders, customers, products, syncQueue |
+| v2 | Added `tenantId` index to all tables for multi-tenant isolation |
+| v3 | Added `paymentMethod`, `discountAmount`, `discountReason` to `LocalOrder`; added `costPrice` to `LocalProduct`. Upgrade function backfills `paymentMethod='cash'` and `discountAmount=0` on existing rows. |
+
+Credit events and returns are **not** stored in IndexedDB — they are always fetched from the API because they require server-confirmed IDs.
 
 ### Queue Statuses
 
@@ -433,7 +596,7 @@ Orders are idempotent via `client_id`. If the network drops after the server pro
 
 ### Tenant Isolation
 
-Every data table (`customers`, `products`, `orders`) has a `tenant_id` column with a FK to `tenants`. All queries are scoped:
+Every data table (`customers`, `products`, `orders`, `customer_credit_events`, `returns`) has a `tenant_id` column with a FK to `tenants`. All queries are scoped:
 
 ```sql
 WHERE tenant_id = $tenantId
@@ -472,6 +635,26 @@ The app fully supports **Arabic (ar)** and **English (en)**.
 - `packages/frontend/src/i18n/ar.json` — Arabic strings (RTL)
 - `packages/frontend/src/i18n/en.json` — English strings (LTR)
 
+### Covered Namespaces
+
+| Namespace | Keys |
+|---|---|
+| `app` | name, tagline |
+| `nav` | dashboard, orders, inventory, customers, settings |
+| `dashboard` | title, revenue, orders, profit, debt, lowStock, topProducts, quickActions, vsYesterday, pending, noLowStock, noSales, refresh, newOrder, adjustStock, viewCustomers, qty |
+| `orders` | title, new, status.*, total, notes, items, addItem, itemName, price, quantity, submit, revenue, empty, noItems, unknownCustomer, itemCount, changeStatus, orderDetail, priceX |
+| `payment` | method, cash, card, vodafone_cash, instapay, credit |
+| `discount` | label, amount, reason, applied |
+| `returns` | title, new, quantity, refundMethod, cash, card, vodafone_cash, instapay, credit_note, submit, success, noReturns, noNetwork |
+| `credit` | balance, owed, clear, recordPayment, debit, payment, events, amount, notes, noEvents, paymentSuccess |
+| `customers` | title, search, name, phone, add, history, noHistory, select, noCustomers, change, notFound, addNew, ordersCount, egpSpent |
+| `inventory` | title, add, name, price, **costPrice**, **margin**, stock, lowStock, adjust, increase, decrease, amount, noProducts, alertLevel, productN, cancelAdjust |
+| `invoice` | title, number, date, print, download, customer, item, qty, unitPrice, subtotal, total, thankYou |
+| `sync` | syncing, synced, offline, pending, failed |
+| `settings` | account, logout, language, syncSection, syncStatus, syncPending, operations, syncNow, maintenance, clearCache, systemInfo, frontend, backend, database, version, roleOwner, roleCashier |
+| `msg` | noInternet, syncDone, statusUpdated, statusFailed, orderSaved, orderFailed, productAdded, stockUpdated, cacheCleared, confirmLogout, confirmClear |
+| `common` | save, cancel, delete, edit, confirm, back, loading, error, success, egp, required |
+
 ### Switching Language
 
 Calling `setLang('en' | 'ar')` from `useLanguageStore` atomically:
@@ -509,6 +692,9 @@ Sensitive fields automatically redacted in production:
 - SQL query errors with the full query string
 - Auth events (login attempt, login success, login failure)
 - Sync batch events (item count, per-item success/failure/permanent)
+- Credit event creation (order on credit)
+- Payment recording (customer debt payment)
+- Return creation (items returned, stock restored)
 - Graceful shutdown signals
 
 ### Backend Error Types (`AppError`)
@@ -536,6 +722,7 @@ PostgreSQL errors are translated into typed `AppError` instances before being pa
 - 401 auto-logout
 - Network errors (timeout, connection refused)
 - Sync engine batch start, completion, per-item failures
+- Dashboard stats fetch success/failure
 - React `ErrorBoundary` catches
 
 ### React ErrorBoundary
@@ -572,6 +759,8 @@ docker compose up --build
 ```
 
 Open **http://localhost:3847** and create your first business account.
+
+> **Note:** The first time you start, migrations run `001_initial.sql`, `002_multi_tenant.sql`, and `003_business_features.sql` automatically. On subsequent starts only missing columns/tables are added (all `ALTER TABLE` statements use `ADD COLUMN IF NOT EXISTS`).
 
 ### Useful Docker Commands
 
@@ -669,8 +858,10 @@ dukkan/
 │   │   │   └── types/
 │   │   │       ├── auth.ts
 │   │   │       ├── customer.ts
-│   │   │       ├── order.ts
-│   │   │       ├── product.ts
+│   │   │       ├── order.ts     ← PaymentMethod union type
+│   │   │       ├── product.ts   ← costPrice field
+│   │   │       ├── credit.ts    ← CustomerCreditEvent, CustomerBalance, RecordPaymentInput
+│   │   │       ├── return.ts    ← OrderReturn, ReturnItem, CreateReturnInput, RefundMethod
 │   │   │       ├── sync.ts      ← SyncStatus includes 'dead' for permanent failures
 │   │   │       ├── invoice.ts
 │   │   │       └── api.ts
@@ -684,20 +875,32 @@ dukkan/
 │   │       ├── index.ts         ← Express app, middleware wiring, graceful shutdown
 │   │       ├── db/
 │   │       │   ├── client.ts    ← pg Pool + Kysely instance, pool event logging
-│   │       │   ├── types.ts     ← Full Kysely Database interface
+│   │       │   ├── types.ts     ← Full Kysely Database interface (all 9 tables)
 │   │       │   ├── migrate.ts   ← Sequential migration runner
 │   │       │   └── migrations/
-│   │       │       ├── 001_initial.sql
-│   │       │       └── 002_multi_tenant.sql
+│   │       │       ├── 001_initial.sql               ← Core schema + triggers
+│   │       │       ├── 002_multi_tenant.sql          ← tenants, users, tenant_id columns
+│   │       │       └── 003_business_features.sql     ← payment, discount, cost_price,
+│   │       │                                            customer_credit_events, returns
 │   │       ├── features/
 │   │       │   ├── auth/
 │   │       │   │   ├── router.ts     ← POST /register, POST /login
 │   │       │   │   └── service.ts    ← bcrypt hash/compare, JWT sign
+│   │       │   ├── dashboard/        ← NEW
+│   │       │   │   ├── router.ts     ← GET /dashboard
+│   │       │   │   └── service.ts    ← getDashboardStats() — parallel KPI queries
 │   │       │   ├── orders/
 │   │       │   │   ├── router.ts
-│   │       │   │   └── service.ts    ← resolveCustomerId() UUID guard
+│   │       │   │   └── service.ts    ← paymentMethod, discount, credit event auto-insert
+│   │       │   ├── returns/          ← NEW
+│   │       │   │   ├── router.ts     ← POST+GET /orders/:id/returns, GET /returns/:id
+│   │       │   │   └── service.ts    ← createReturn(), stock restoration
 │   │       │   ├── customers/
+│   │       │   │   ├── router.ts     ← + balance, credit-events, payments endpoints
+│   │       │   │   └── service.ts    ← + getCustomerBalance(), listCreditEvents(), recordPayment()
 │   │       │   ├── inventory/
+│   │       │   │   ├── router.ts
+│   │       │   │   └── service.ts    ← + cost_price in createProduct/updateProduct
 │   │       │   ├── invoices/
 │   │       │   └── sync/
 │   │       │       └── router.ts     ← Batch processor, permanent error detection
@@ -716,12 +919,12 @@ dukkan/
 │       ├── tailwind.config.js    ← Dark design tokens, glow shadows, animations
 │       ├── index.html            ← Inter + Cairo fonts, lang/dir set by JS
 │       └── src/
-│           ├── App.tsx           ← Router, ProtectedRoute wrapper
+│           ├── App.tsx           ← Router (/ = Dashboard, /orders = Orders, /orders/:id/return = ReturnPage)
 │           ├── main.tsx          ← initLanguage(), ErrorBoundary, React root
-│           ├── index.css         ← Tailwind base + .btn-primary, .card, .input-field, …
+│           ├── index.css         ← Tailwind base + .btn-primary, .btn-danger, .card, .input-field, …
 │           ├── api/client.ts     ← Axios, Bearer interceptor, 401 auto-logout
 │           ├── components/
-│           │   ├── BottomNav.tsx       ← Glass nav, gradient active indicator
+│           │   ├── BottomNav.tsx       ← 5-tab glass nav: Dashboard/Orders/Inventory/Customers/Settings
 │           │   ├── StatusChip.tsx      ← Glowing status badges
 │           │   ├── SyncIndicator.tsx   ← Online/syncing/synced pill
 │           │   ├── Toast.tsx           ← Slide-down glass notification
@@ -730,18 +933,19 @@ dukkan/
 │           │   └── ErrorBoundary.tsx
 │           ├── features/
 │           │   ├── auth/         ← LoginPage, RegisterPage
-│           │   ├── orders/       ← OrdersPage, NewOrderPage, OrderDetailPage
-│           │   ├── customers/    ← CustomersPage, CustomerDetailPage, CustomerSearchInput
-│           │   ├── inventory/    ← InventoryPage
+│           │   ├── dashboard/    ← DashboardPage (home /) — NEW
+│           │   ├── orders/       ← OrdersPage, NewOrderPage, OrderDetailPage, ReturnPage (NEW)
+│           │   ├── customers/    ← CustomersPage, CustomerDetailPage (+ balance/credit tab), CustomerSearchInput
+│           │   ├── inventory/    ← InventoryPage (+ costPrice + margin)
 │           │   ├── invoices/     ← InvoicePrint (print-only)
 │           │   └── settings/     ← SettingsPage
 │           ├── i18n/
-│           │   ├── ar.json
-│           │   ├── en.json
+│           │   ├── ar.json       ← Arabic (all namespaces including new ones)
+│           │   ├── en.json       ← English (all namespaces including new ones)
 │           │   └── config.ts
 │           ├── lib/logger.ts     ← Client-side structured logger
 │           ├── offline/
-│           │   ├── db.ts         ← Dexie v2 schema (all tables tenant-scoped)
+│           │   ├── db.ts         ← Dexie v3 schema (paymentMethod, discountAmount, costPrice)
 │           │   ├── queue.ts      ← enqueue, markDone, markFailed, markDead
 │           │   └── syncEngine.ts ← Backoff loop, dead-letter, network events
 │           └── store/
@@ -775,7 +979,7 @@ The UI uses a **Gen Z dark aesthetic**: deep backgrounds, glassmorphism cards, n
 | Class | Description |
 |---|---|
 | `.btn-primary` | Violet→purple→cyan gradient button, glow on hover |
-| `.btn-danger` | Pink→magenta gradient button |
+| `.btn-danger` | Pink→magenta gradient button — used for Return Items |
 | `.btn-secondary` | Glass button (white/7% bg, white/10% border) |
 | `.card` | Dark glass card with blur and inner-border highlight |
 | `.input-field` | Dark input, violet glow ring on focus |
@@ -787,6 +991,18 @@ The UI uses a **Gen Z dark aesthetic**: deep backgrounds, glassmorphism cards, n
 |---|---|---|
 | English | Inter | 400 – 900 |
 | Arabic | Cairo | 400 – 900 |
+
+### Navigation
+
+5-tab bottom navigation bar (glassmorphism with gradient active indicator):
+
+| Tab | Icon | Route |
+|---|---|---|
+| Dashboard | Grid (2×2 squares) | `/` |
+| Orders | Clipboard | `/orders` |
+| Inventory | Box | `/inventory` |
+| Customers | Users | `/customers` |
+| Settings | Gear | `/settings` |
 
 ---
 
@@ -810,6 +1026,22 @@ Orders use `client_id` (device-generated UUID) as the deduplication key on the s
 
 Sync items that fail with PostgreSQL error codes `22P02`, `23503`, or `23505` are immediately marked `dead`. The sync engine will never retry them. This prevents infinite retry loops from corrupted or stale data.
 
+### Credit Orders (Payment Method = "Credit")
+
+When an order is submitted with `paymentMethod: "credit"`:
+- A `customer_credit_events` debit row is created inside the same DB transaction
+- If the transaction fails, neither the order nor the credit event is committed
+- The debit amount equals `total − discount_amount`
+- If `customerId` is null or unresolved, no credit event is created (order still saves as cash semantics)
+
+### Returns Are Online-Only
+
+The return flow (`ReturnPage`) requires a live internet connection. If the user is offline, a warning banner is shown and the submit button is disabled. This is intentional: returns involve complex stock restoration that must be server-confirmed before showing the result.
+
+### IndexedDB Upgrade (v2 → v3)
+
+Existing installations upgrading from Dexie v2 will have the upgrade function run automatically on first page load after update. Orders get `paymentMethod: 'cash'` and `discountAmount: 0` backfilled. No data is lost.
+
 ### PWA / Service Worker
 
 The app is a Progressive Web App. On Chrome/Edge you can install it to your home screen. The service worker caches static assets. API calls are always network-first (no caching of API responses).
@@ -823,7 +1055,9 @@ The app is a Progressive Web App. On Chrome/Edge you can install it to your home
 | Passwords | bcrypt with 10 rounds. Never logged, never returned in API responses. Redacted by pino in production logs. |
 | JWT | Signed with `HS256`. Secret must be ≥ 32 chars. Default expiry 30 days. Token stored in `localStorage` (acceptable for local-network deployments; upgrade to `httpOnly` cookies for public internet). |
 | SQL Injection | Impossible — all queries use Kysely's parameterised query builder. No raw string interpolation. |
-| Tenant Isolation | Every query includes `WHERE tenant_id = $tenantId` extracted from the verified JWT. |
+| Tenant Isolation | Every query includes `WHERE tenant_id = $tenantId` extracted from the verified JWT. This applies to all new tables: `customer_credit_events`, `returns`. |
+| Return Validation | The returns service verifies the order belongs to the tenant and that returned quantities do not exceed original quantities. |
+| Credit Balance | The balance endpoint always returns `max(0, debit − payment)` — it cannot go negative or expose other tenants' data. |
 | CORS | Restricted to `CORS_ORIGIN` env var. Default: `http://localhost:3847`. |
 | Security Headers | `helmet` middleware applies `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc. |
 | Input Validation | All route handlers validate required fields and throw typed `AppError.validation()` before touching the database. |

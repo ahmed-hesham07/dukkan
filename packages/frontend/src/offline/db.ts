@@ -12,6 +12,9 @@ export interface LocalOrder extends Omit<Order, 'items'> {
   tenantId: string;
   items: LocalOrderItem[];
   synced: boolean;
+  paymentMethod: Order['paymentMethod'];
+  discountAmount: number;
+  discountReason: string | null;
 }
 
 export interface LocalOrderItem extends Omit<OrderItem, 'id' | 'orderId'> {
@@ -29,6 +32,7 @@ export interface LocalProduct extends Product {
   localId?: number;
   tenantId: string;
   synced: boolean;
+  costPrice?: number;
 }
 
 export interface LocalSyncQueueItem extends SyncQueueItem {
@@ -65,12 +69,33 @@ class DukkanDatabase extends Dexie {
         syncQueue: '++id, entity, action, status, tenantId, createdAt',
       })
       .upgrade((tx) => {
-        // Existing rows get tenantId = '' — they will be cleared on first tenant login
         return Promise.all([
           tx.table('orders').toCollection().modify({ tenantId: '' }),
           tx.table('customers').toCollection().modify({ tenantId: '' }),
           tx.table('products').toCollection().modify({ tenantId: '' }),
           tx.table('syncQueue').toCollection().modify({ tenantId: '' }),
+        ]);
+      });
+
+    // v3 — add payment method, discount, and cost price fields
+    this.version(3)
+      .stores({
+        orders: '++localId, clientId, tenantId, status, createdAt, synced',
+        orderItems: '++localId, orderId',
+        customers: '++localId, phone, id, tenantId, synced',
+        products: '++localId, id, tenantId, synced',
+        syncQueue: '++id, entity, action, status, tenantId, createdAt',
+      })
+      .upgrade((tx) => {
+        return Promise.all([
+          tx.table('orders').toCollection().modify((order: LocalOrder) => {
+            if (!order.paymentMethod) order.paymentMethod = 'cash';
+            if (order.discountAmount === undefined) order.discountAmount = 0;
+            if (order.discountReason === undefined) order.discountReason = null;
+          }),
+          tx.table('products').toCollection().modify((product: LocalProduct) => {
+            if (product.costPrice === undefined) product.costPrice = undefined;
+          }),
         ]);
       });
   }

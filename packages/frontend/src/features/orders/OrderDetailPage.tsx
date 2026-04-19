@@ -203,6 +203,26 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
+        {/* Payment method + discount info */}
+        {(order.paymentMethod || order.discountAmount > 0) && (
+          <div className="rounded-3xl p-4" style={{ background: 'rgba(20,20,42,0.85)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <p className="text-xs font-bold text-white/30 uppercase tracking-wider mb-3">{t('payment.method')}</p>
+            <div className="flex flex-wrap gap-2 items-center">
+              {order.paymentMethod && (
+                <span className="px-3 py-1 rounded-full text-sm font-bold" style={{ background: 'linear-gradient(135deg,rgba(124,58,237,0.2),rgba(37,99,235,0.2))', border: '1px solid rgba(124,58,237,0.3)', color: '#a78bfa' }}>
+                  {t(`payment.${order.paymentMethod}`)}
+                </span>
+              )}
+              {order.discountAmount > 0 && (
+                <span className="px-3 py-1 rounded-full text-sm font-bold" style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#fbbf24' }}>
+                  {t('discount.label')}: -{order.discountAmount.toFixed(2)} {t('common.egp')}
+                  {order.discountReason && ` (${order.discountReason})`}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Change status */}
         <div
           className="rounded-3xl p-4"
@@ -234,6 +254,21 @@ export default function OrderDetailPage() {
             })}
           </div>
         </div>
+
+        {/* Return Items */}
+        {order.synced && order.status !== 'cancelled' && (
+          <button
+            className="btn-danger no-print"
+            onClick={() => navigate(`/orders/${order.id}/return`)}
+          >
+            <span className="flex items-center justify-center gap-2">
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+                <path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0M9 12l3-3m0 0l3 3m-3-3v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              {t('returns.new')}
+            </span>
+          </button>
+        )}
 
         <button
           className="btn-secondary no-print"

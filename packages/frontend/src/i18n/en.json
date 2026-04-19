@@ -4,10 +4,30 @@
     "tagline": "Business Operations System"
   },
   "nav": {
+    "dashboard": "Dashboard",
     "orders": "Orders",
     "inventory": "Inventory",
     "customers": "Customers",
     "settings": "Settings"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "revenue": "Today's Revenue",
+    "orders": "Today's Orders",
+    "profit": "Today's Profit",
+    "debt": "Customer Debt",
+    "lowStock": "Low Stock",
+    "topProducts": "Top Products Today",
+    "quickActions": "Quick Actions",
+    "vsYesterday": "vs yesterday",
+    "pending": "Pending Orders",
+    "noLowStock": "All stock levels OK",
+    "noSales": "No sales today",
+    "refresh": "Refresh",
+    "newOrder": "New Order",
+    "adjustStock": "Adjust Stock",
+    "viewCustomers": "View Customers",
+    "qty": "× qty"
   },
   "orders": {
     "title": "Orders",
@@ -56,6 +76,8 @@
     "add": "Add Product",
     "name": "Product Name",
     "price": "Price",
+    "costPrice": "Cost Price",
+    "margin": "Profit Margin",
     "stock": "Stock",
     "lowStock": "Low Stock",
     "adjust": "Adjust Stock",
@@ -106,6 +128,48 @@
     "version": "Version",
     "roleOwner": "Owner",
     "roleCashier": "Cashier"
+  },
+  "payment": {
+    "method": "Payment Method",
+    "cash": "Cash",
+    "card": "Card",
+    "vodafone_cash": "Vodafone Cash",
+    "instapay": "InstaPay",
+    "credit": "Credit (On Account)"
+  },
+  "discount": {
+    "label": "Discount",
+    "amount": "Discount Amount",
+    "reason": "Discount Reason",
+    "applied": "Discount applied"
+  },
+  "returns": {
+    "title": "Returns",
+    "new": "Return Items",
+    "quantity": "Return Qty",
+    "refundMethod": "Refund Method",
+    "cash": "Cash",
+    "card": "Card",
+    "vodafone_cash": "Vodafone Cash",
+    "instapay": "InstaPay",
+    "credit_note": "Credit Note",
+    "submit": "Confirm Return",
+    "success": "Return processed successfully",
+    "noReturns": "No returns for this order",
+    "noNetwork": "Returns require an internet connection"
+  },
+  "credit": {
+    "balance": "Balance",
+    "owed": "Owes",
+    "clear": "No debt",
+    "recordPayment": "Record Payment",
+    "debit": "Debit",
+    "payment": "Payment",
+    "events": "Credit & Payment History",
+    "amount": "Amount",
+    "notes": "Notes",
+    "noEvents": "No transactions yet",
+    "paymentSuccess": "Payment recorded"
   },
   "msg": {
     "noInternet": "No internet connection",

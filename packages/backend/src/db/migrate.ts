@@ -16,6 +16,7 @@ const log = pino({
 const MIGRATIONS = [
   '001_initial.sql',
   '002_multi_tenant.sql',
+  '003_business_features.sql',
 ];
 
 async function migrate() {

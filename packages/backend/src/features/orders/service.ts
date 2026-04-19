@@ -10,9 +10,6 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  *   - the value is falsy
  *   - the value is not a valid UUID (e.g. old "local-<timestamp>" offline IDs)
  *   - the customer doesn't exist in the DB yet (avoids FK violation)
- *
- * This makes order sync idempotent and safe even when the customer
- * hasn't been synced yet or was created with an invalid local ID.
  */
 async function resolveCustomerId(
   rawId: string | null | undefined,
@@ -33,7 +30,7 @@ async function resolveCustomerId(
     .executeTakeFirst();
 
   if (!customer) {
-    logger.warn({ customerId: rawId, tenantId }, 'createOrder: customer not found in DB, setting customer_id to null');
+    logger.warn({ customerId: rawId, tenantId }, 'createOrder: customer not found, setting customer_id to null');
     return null;
   }
 
@@ -58,6 +55,8 @@ export async function createOrder(input: CreateOrderInput, tenantId: string) {
   }
 
   const customerId = await resolveCustomerId(input.customerId, tenantId);
+  const paymentMethod = input.paymentMethod ?? 'cash';
+  const discountAmount = input.discountAmount ?? 0;
 
   return db.transaction().execute(async (trx) => {
     const order = await trx
@@ -68,7 +67,10 @@ export async function createOrder(input: CreateOrderInput, tenantId: string) {
         tenant_id: tenantId,
         customer_id: customerId,
         status: input.status ?? 'pending',
+        payment_method: paymentMethod,
         total: input.total,
+        discount_amount: discountAmount,
+        discount_reason: input.discountReason ?? null,
         notes: input.notes ?? null,
         created_at: input.createdAt,
       })
@@ -104,6 +106,25 @@ export async function createOrder(input: CreateOrderInput, tenantId: string) {
       }
     }
 
+    // Auto-create customer debt entry when paying on credit
+    if (paymentMethod === 'credit' && customerId) {
+      const creditAmount = Math.max(0, input.total - discountAmount);
+      if (creditAmount > 0) {
+        await trx
+          .insertInto('customer_credit_events')
+          .values({
+            tenant_id: tenantId,
+            customer_id: customerId,
+            amount: creditAmount,
+            type: 'debit',
+            order_id: order.id,
+            notes: null,
+          })
+          .execute();
+        logger.info({ orderId: order.id, customerId, amount: creditAmount }, 'Credit debit event created');
+      }
+    }
+
     await trx
       .insertInto('sync_log')
       .values({ client_id: input.clientId, entity_type: 'order' })
@@ -114,23 +135,28 @@ export async function createOrder(input: CreateOrderInput, tenantId: string) {
   });
 }
 
+const ORDER_SELECT = [
+  'orders.id',
+  'orders.client_id',
+  'orders.tenant_id',
+  'orders.customer_id',
+  'orders.status',
+  'orders.payment_method',
+  'orders.total',
+  'orders.discount_amount',
+  'orders.discount_reason',
+  'orders.notes',
+  'orders.created_at',
+  'orders.synced_at',
+  'customers.name as customer_name',
+  'customers.phone as customer_phone',
+] as const;
+
 export async function getOrder(id: string, tenantId: string) {
   const order = await db
     .selectFrom('orders')
     .leftJoin('customers', 'customers.id', 'orders.customer_id')
-    .select([
-      'orders.id',
-      'orders.client_id',
-      'orders.tenant_id',
-      'orders.customer_id',
-      'orders.status',
-      'orders.total',
-      'orders.notes',
-      'orders.created_at',
-      'orders.synced_at',
-      'customers.name as customer_name',
-      'customers.phone as customer_phone',
-    ])
+    .select(ORDER_SELECT)
     .where('orders.id', '=', id)
     .where('orders.tenant_id', '=', tenantId)
     .executeTakeFirst();
@@ -163,19 +189,7 @@ export async function listOrders(tenantId: string, limit = 50, offset = 0) {
   return db
     .selectFrom('orders')
     .leftJoin('customers', 'customers.id', 'orders.customer_id')
-    .select([
-      'orders.id',
-      'orders.client_id',
-      'orders.tenant_id',
-      'orders.customer_id',
-      'orders.status',
-      'orders.total',
-      'orders.notes',
-      'orders.created_at',
-      'orders.synced_at',
-      'customers.name as customer_name',
-      'customers.phone as customer_phone',
-    ])
+    .select(ORDER_SELECT)
     .where('orders.tenant_id', '=', tenantId)
     .orderBy('orders.created_at', 'desc')
     .limit(limit)

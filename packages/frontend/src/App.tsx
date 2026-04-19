@@ -8,9 +8,11 @@ import { useAuthStore } from './store/useAuthStore';
 
 const LoginPage = lazy(() => import('./features/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./features/auth/RegisterPage'));
+const DashboardPage = lazy(() => import('./features/dashboard/DashboardPage'));
 const OrdersPage = lazy(() => import('./features/orders/OrdersPage'));
 const NewOrderPage = lazy(() => import('./features/orders/NewOrderPage'));
 const OrderDetailPage = lazy(() => import('./features/orders/OrderDetailPage'));
+const ReturnPage = lazy(() => import('./features/orders/ReturnPage'));
 const InventoryPage = lazy(() => import('./features/inventory/InventoryPage'));
 const CustomersPage = lazy(() => import('./features/customers/CustomersPage'));
 const CustomerDetailPage = lazy(() => import('./features/customers/CustomerDetailPage'));
@@ -45,9 +47,19 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          {/* Protected routes */}
+          {/* Dashboard — home */}
           <Route
             path="/"
+            element={
+              <ProtectedRoute>
+                <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Orders */}
+          <Route
+            path="/orders"
             element={
               <ProtectedRoute>
                 <OrdersPage />
@@ -63,6 +75,14 @@ export default function App() {
             }
           />
           <Route
+            path="/orders/:id/return"
+            element={
+              <ProtectedRoute>
+                <ReturnPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/orders/:id"
             element={
               <ProtectedRoute>
@@ -70,6 +90,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Inventory */}
           <Route
             path="/inventory"
             element={
@@ -78,6 +100,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Customers */}
           <Route
             path="/customers"
             element={
@@ -94,6 +118,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Settings */}
           <Route
             path="/settings"
             element={
@@ -108,7 +134,6 @@ export default function App() {
         </Routes>
       </Suspense>
 
-      {/* Only show nav when authenticated */}
       {isAuthenticated() && <BottomNav />}
     </BrowserRouter>
   );

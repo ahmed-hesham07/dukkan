@@ -1,5 +1,7 @@
 export type OrderStatus = 'pending' | 'paid' | 'delivered' | 'cancelled';
 
+export type PaymentMethod = 'cash' | 'card' | 'vodafone_cash' | 'instapay' | 'credit';
+
 export interface OrderItem {
   id: string;
   orderId: string;
@@ -16,7 +18,10 @@ export interface Order {
   customerName?: string;
   customerPhone?: string;
   status: OrderStatus;
+  paymentMethod: PaymentMethod;
   total: number;
+  discountAmount: number;
+  discountReason: string | null;
   notes: string | null;
   items: OrderItem[];
   createdAt: string;
@@ -34,7 +39,10 @@ export interface CreateOrderInput {
   clientId: string;
   customerId?: string;
   status?: OrderStatus;
+  paymentMethod?: PaymentMethod;
   total: number;
+  discountAmount?: number;
+  discountReason?: string;
   notes?: string;
   items: CreateOrderItemInput[];
   createdAt: string;

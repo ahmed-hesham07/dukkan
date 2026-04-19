@@ -2,6 +2,7 @@ export interface Product {
   id: string;
   name: string;
   price: number;
+  costPrice?: number;
   stock: number;
   lowStockThreshold: number;
   createdAt: string;
@@ -11,6 +12,7 @@ export interface Product {
 export interface CreateProductInput {
   name: string;
   price: number;
+  costPrice?: number;
   stock?: number;
   lowStockThreshold?: number;
 }
